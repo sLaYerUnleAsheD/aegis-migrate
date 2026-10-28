@@ -25,6 +25,7 @@ def make_fake_cobc(tmp_path: Path, body: str) -> str:
     fake = tmp_path / "fakecobc"
     fake.write_text(
         "#!/bin/sh\n"
+        '[ "$1" = "--version" ] && { echo "fakecobc ${FAKE_COBC_VERSION:-0}"; exit 0; }\n'
         'out=""\n'
         'while [ $# -gt 0 ]; do [ "$1" = "-o" ] && out="$2"; shift; done\n'
         f'printf "#!/bin/sh\\n{body}\\n" > "$out"\n'
@@ -82,6 +83,19 @@ def test_binary_is_cached_by_source_hash(fake_env):
     assert oracle.compile_cobol(src) != b1  # new source -> new binary
 
 
+def test_cache_key_includes_compiler_version(fake_env):
+    tmp, src, mp = fake_env
+    mp.setattr(oracle, "COBC", make_fake_cobc(tmp, "echo x"))
+    try:
+        os.environ["FAKE_COBC_VERSION"] = "1"
+        b1 = oracle.compile_cobol(src)
+        os.environ["FAKE_COBC_VERSION"] = "2"
+        b2 = oracle.compile_cobol(src)
+    finally:
+        os.environ.pop("FAKE_COBC_VERSION", None)
+    assert b1 != b2      # same source, different compiler -> must rebuild
+
+
 def test_determinism_detects_flaky_program(fake_env):
     tmp, src, mp = fake_env
     mp.setattr(oracle, "COBC", make_fake_cobc(tmp, "cat /proc/sys/kernel/random/uuid"))
@@ -96,6 +110,14 @@ def test_runs_and_prints_summary():
     assert res.ok, res.compile_error or res.stderr
     out = res.stdout.decode()
     assert "ACC001" in out and "RECORDS: 00005" in out
+
+
+@needs_cobc
+def test_oracle_matches_committed_golden():
+    """Guards against cobc-version drift between host and container."""
+    res = run_oracle(PROG, SAMPLE.read_bytes())
+    assert res.ok, res.compile_error or res.stderr
+    assert res.stdout == Path("benchmark/golden/simple_interest.sample.stdout").read_bytes()
 
 
 @needs_cobc

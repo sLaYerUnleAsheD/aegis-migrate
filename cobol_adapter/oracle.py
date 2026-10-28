@@ -60,10 +60,22 @@ class OracleResult:
         return d
 
 
+def cobc_version() -> str:
+    """First line of `cobc --version`. Part of the binary cache key: a binary
+    built by one GnuCOBOL version fails ("libcob version mismatch") under
+    another, e.g. when a host-built cache is reused inside a container."""
+    try:
+        proc = subprocess.run([COBC, "--version"], capture_output=True, text=True, timeout=10)
+        lines = (proc.stdout or proc.stderr).strip().splitlines()
+        return lines[0].strip() if proc.returncode == 0 and lines else "unknown"
+    except (OSError, subprocess.TimeoutExpired):
+        return "unknown"
+
+
 def compile_cobol(src: Path, free_format: bool = False) -> Path:
     """Compile `src` and return the path of the cached binary.
 
-    The binary is cached by a hash of (source bytes, flags), so editing a
+    The binary is cached by a hash of (source, flags, cobc version), so editing a
     program triggers a rebuild and unchanged programs are free.
     """
     if shutil.which(COBC) is None:
@@ -72,7 +84,8 @@ def compile_cobol(src: Path, free_format: bool = False) -> Path:
         )
     src = Path(src)
     flags = ["-x"] + (["-free"] if free_format else ["-fixed"])
-    key = hashlib.sha256(src.read_bytes() + " ".join(flags).encode()).hexdigest()[:16]
+    ident = src.read_bytes() + " ".join(flags).encode() + cobc_version().encode()
+    key = hashlib.sha256(ident).hexdigest()[:16]
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     binary = CACHE_DIR / f"{src.stem}-{key}"
     if binary.exists():
