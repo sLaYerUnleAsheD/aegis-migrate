@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "exit_code": 0,
+  "stdout": "ACC001     1,000.00         150.00\nACC002         0.50           0.01\nACC003 9,999,999.99 989,900,999.01\nACC004         0.00           0.00\nACC005   123,456.78      62,654.32\nRECORDS: 00005\nTOTAL INTEREST:    989,963,803.34\n",
+  "stderr": "",
+  "files": {},
+  "runtime_s": 0.015291751999939152,
+  "timed_out": false,
+  "compile_error": null,
+  "digest": "70bbace5325c135ef9d05d23586504536941b3fb707c73ac25c8ad31999c5b71"
+}
