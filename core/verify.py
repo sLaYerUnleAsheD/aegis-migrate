@@ -73,7 +73,7 @@ def build_go(go_source: str, workdir: Path) -> tuple[Path | None, str | None]:
     (src_dir / "main.go").write_text(go_source)
     binary = workdir / "prog"
     flags = ["-mod=vendor"] if (src_dir / "vendor").exists() else []
-    proc = subprocess.run([GO, "build", *flags, "-o", str(binary), "."],
+    proc = subprocess.run([GO, "build", "-trimpath", *flags, "-o", str(binary), "."],
                           cwd=src_dir, capture_output=True, text=True, timeout=120,
                           env={**os.environ, "GOFLAGS": os.environ.get("GOFLAGS", ""), "CGO_ENABLED": "0"})
     if proc.returncode != 0:

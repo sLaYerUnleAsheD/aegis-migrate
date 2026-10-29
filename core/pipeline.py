@@ -7,8 +7,9 @@ One run yields BOTH numbers you will report:
     single_shot_ok : did the very first translation pass? (the baseline)
     status         : did the verified loop eventually pass?
 
-SECURITY: model-written Go is executed. Run it in the Docker sandbox; the
-CLI refuses to run locally unless you pass --unsafe-local-exec.
+SECURITY: model-written Go is executed. By default it runs in the Docker
+sandbox (core/sandbox.py); local execution needs --sandbox local together
+with --unsafe-local-exec.
 """
 from __future__ import annotations
 
@@ -23,6 +24,7 @@ from cobol_adapter.inputgen import generate_cases
 from cobol_adapter.oracle import run_oracle
 from core import translate
 from core.llm import BudgetExceeded, LLMClient, LLMError, load_env
+from core.sandbox import verify_in_docker
 from core.verify import verify
 
 
@@ -137,20 +139,25 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--sample", type=int, default=0,
                     help="draw a fresh model sample (bypasses the cache); use 1..N for variance runs")
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--sandbox", choices=["docker", "local"], default="docker",
+                    help="where model-written Go runs (default: docker, no network)")
+    ap.add_argument("--image", default="cobol-verify", help="Docker image for --sandbox docker")
     ap.add_argument("--unsafe-local-exec", action="store_true",
-                    help="run model-written Go on this machine (use the Docker sandbox for anything untrusted)")
+                    help="required with --sandbox local: run model-written Go on this machine")
     args = ap.parse_args(argv[1:])
-    if not args.unsafe_local_exec:
-        print("Refusing to execute model-written Go locally. Re-run with --unsafe-local-exec "
-              "(fine for small tier-1 programs) or use the Docker sandbox.", file=sys.stderr)
+    if args.sandbox == "local" and not args.unsafe_local_exec:
+        print("Refusing to execute model-written Go locally. Use --sandbox docker (default) or "
+              "add --unsafe-local-exec.", file=sys.stderr)
         return 2
+    verifier = verify if args.sandbox == "local" else (
+        lambda go, cases: verify_in_docker(go, cases, image=args.image))
     load_env()
     effort = None if args.effort == "none" else args.effort
     client = LLMClient(args.provider, model=args.model)
     # one folder per provider and sample, so runs never overwrite each other
     out = args.out or Path("run") / args.provider / args.program.stem / f"sample{args.sample}"
     res = migrate(args.program, client, max_repairs=args.max_repairs, effort=effort,
-                  seed=args.seed, n_random=args.n_random, sample=args.sample, out_dir=out)
+                  seed=args.seed, n_random=args.n_random, sample=args.sample, verifier=verifier, out_dir=out)
     print(f"\nstatus={res['status']}  single_shot_ok={res['single_shot_ok']}  "
           f"repairs={res['repairs_used']}  cost=${res['total_cost_usd']:.4f}  "
           f"spent_total=${client.spent():.4f}\nresult: {out / 'result.json'}")
