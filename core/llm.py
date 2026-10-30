@@ -93,6 +93,7 @@ class LLMResult:
     model: str
     provider: str
     latency_s: float = 0.0
+    list_cost_usd: float = 0.0   # what the call costs at list price (also for cache hits)
 
 
 # ------------------------------------------------------------------ utils --
@@ -260,7 +261,9 @@ class LLMClient:
         cache_file = self.cache_dir / f"{key}.json"
         if cache_file.exists():
             c = json.loads(cache_file.read_text())
-            return LLMResult(c["text"], c["usage"], 0.0, True, self.model, self.provider)
+            u = c["usage"]
+            lc = compute_cost(self.p, u["input_tokens"], u["cached_tokens"], u["output_tokens"])
+            return LLMResult(c["text"], u, 0.0, True, self.model, self.provider, 0.0, lc)
 
         if self.spent() >= self.max_spend:
             raise BudgetExceeded(f"{self.provider}: spend cap ${self.max_spend:.2f} reached "
@@ -307,7 +310,7 @@ class LLMClient:
         self._record(cost, {"ts": time.time(), "provider": self.provider, "model": self.model,
                             "tag": tag, "cost_usd": cost, "latency_s": round(latency, 2), **usage})
         cache_file.write_text(json.dumps({"text": text, "usage": usage}))
-        return LLMResult(text, usage, cost, False, self.model, self.provider, latency)
+        return LLMResult(text, usage, cost, False, self.model, self.provider, latency, cost)
 
 
 # -------------------------------------------------------------------- CLI --

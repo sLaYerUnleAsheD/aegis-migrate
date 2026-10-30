@@ -44,8 +44,10 @@ def migrate(cbl: Path, client, *, max_repairs: int = 3, effort="default", seed: 
     def finish(status: str, **extra) -> dict:
         res["status"] = status
         res.update(extra)
-        res["total_cost_usd"] = round(sum(a["cost_usd"] for a in res["attempts"])
-                                      + res.get("failed_call_cost_usd", 0.0), 6)
+        failed = res.get("failed_call_cost_usd", 0.0)
+        res["total_cost_usd"] = round(sum(a["cost_usd"] for a in res["attempts"]) + failed, 6)
+        # list price: stays meaningful when calls were served from the cache
+        res["total_list_cost_usd"] = round(sum(a["list_cost_usd"] for a in res["attempts"]) + failed, 6)
         if out_dir:
             out_dir.mkdir(parents=True, exist_ok=True)
             (out_dir / "result.json").write_text(json.dumps(res, indent=2))
@@ -87,7 +89,8 @@ def migrate(cbl: Path, client, *, max_repairs: int = 3, effort="default", seed: 
                       else translate.build_repair_prompt(src, a, go, failure))
             r = client.call(prompt, system=translate.RULES, effort=effort, tag=f"{cbl.stem}:{kind}",
                             salt=f"sample{sample}" if sample else "")
-            att = {"n": n, "kind": kind, "cost_usd": r.cost_usd, "cached": r.cached,
+            att = {"n": n, "kind": kind, "cost_usd": r.cost_usd,
+                   "list_cost_usd": r.list_cost_usd or r.cost_usd, "cached": r.cached,
                    "output_tokens": r.usage["output_tokens"], "built": False,
                    "passed_cases": 0, "failure": ""}
             res["attempts"].append(att)

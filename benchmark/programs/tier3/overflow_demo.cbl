@@ -1,8 +1,12 @@
       * OVERFLOW DEMO (tier 3): accumulators that are too small ON PURPOSE.
       * Record (11 bytes): ACCT X(4) | AMT 9(5)V99
-      * WS-WRAP-TOTAL has no SIZE ERROR phrase, so overflow behaviour is
-      * whatever the compiler does. WS-SAFE-TOTAL uses ON SIZE ERROR and
-      * counts the overflows. WS-HALF is truncated, not rounded.
+      * Only behaviour the COBOL standard defines is used:
+      *  - WS-WRAP-TOTAL: MOVE from a larger field drops HIGH-ORDER digits
+      *  - WS-SAFE-TOTAL: ON SIZE ERROR leaves the target unchanged
+      *  - WS-HALF: no ROUNDED, so the result is truncated
+      * The ON SIZE ERROR action is an out-of-line PERFORM. A nested
+      * "ADD ... END-ADD" there is ambiguous and silently changes which
+      * statements belong to the SIZE ERROR branch.
        IDENTIFICATION DIVISION.
        PROGRAM-ID. OVERFLOW.
 
@@ -22,6 +26,7 @@
        WORKING-STORAGE SECTION.
        01  WS-EOF-FLAG       PIC X        VALUE "N".
            88 INPUT-DONE                  VALUE "Y".
+       01  WS-BIG-TOTAL      PIC 9(7)V99  VALUE 0.
        01  WS-WRAP-TOTAL     PIC 9(5)V99  VALUE 0.
        01  WS-SAFE-TOTAL     PIC 9(5)V99  VALUE 0.
        01  WS-OVERFLOWS      PIC 99       VALUE 0.
@@ -47,10 +52,11 @@
            END-READ.
 
        PROCESS-PARA.
-           ADD AR-AMT TO WS-WRAP-TOTAL
+           ADD AR-AMT TO WS-BIG-TOTAL
+           MOVE WS-BIG-TOTAL TO WS-WRAP-TOTAL
            ADD AR-AMT TO WS-SAFE-TOTAL
                ON SIZE ERROR
-                   ADD 1 TO WS-OVERFLOWS
+                   PERFORM OVERFLOW-PARA
            END-ADD
            ADD 1 TO WS-COUNT
            COMPUTE WS-HALF = AR-AMT / 2
@@ -65,3 +71,6 @@
        SUMMARY-PARA.
            DISPLAY "RECORDS: " WS-COUNT
            DISPLAY "OVERFLOWS: " WS-OVERFLOWS.
+
+       OVERFLOW-PARA.
+           ADD 1 TO WS-OVERFLOWS.
