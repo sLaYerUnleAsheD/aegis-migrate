@@ -237,3 +237,10 @@ def test_cache_hit_reports_list_price_but_spends_nothing(tmp_path):
     assert hit.cached and hit.cost_usd == 0.0
     assert hit.list_cost_usd == pytest.approx(live.cost_usd)
     assert hit.list_cost_usd == pytest.approx(0.006415)
+
+
+def test_effective_effort_resolves_provider_defaults(tmp_path):
+    assert client(tmp_path, FakePost()).effective_effort() == "low"                    # meta default
+    assert client(tmp_path, FakePost(), provider="modal").effective_effort() == "none"
+    assert client(tmp_path, FakePost()).effective_effort("high") == "high"
+    assert client(tmp_path, FakePost()).effective_effort(None) == "none"

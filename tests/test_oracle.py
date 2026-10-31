@@ -114,10 +114,20 @@ def test_runs_and_prints_summary():
 
 @needs_cobc
 def test_oracle_matches_committed_golden():
-    """Guards against cobc-version drift between host and container."""
-    res = run_oracle(PROG, SAMPLE.read_bytes())
-    assert res.ok, res.compile_error or res.stderr
-    assert res.stdout == Path("benchmark/golden/simple_interest.sample.stdout").read_bytes()
+    """Every frozen golden file must still match: guards against cobc-version drift
+    between host and container, and against accidental edits to a program."""
+    goldens = sorted(Path("benchmark/golden").glob("*.sample.stdout"))
+    assert goldens
+    failures = []
+    for g in goldens:
+        name = g.name[: -len(".sample.stdout")]
+        cbl = next(Path("benchmark/programs").rglob(f"{name}.cbl"))
+        res = run_oracle(cbl, cbl.with_name(f"{name}.sample.dat").read_bytes())
+        if not res.ok:
+            failures.append(f"{name}: {res.compile_error or res.stderr!r}")
+        elif res.stdout != g.read_bytes():
+            failures.append(f"{name}: output differs from the frozen golden file")
+    assert not failures, "\n".join(failures)
 
 
 @needs_cobc

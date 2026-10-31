@@ -1,14 +1,14 @@
-      * OVERFLOW DEMO (tier 3): accumulators that are too small ON PURPOSE.
+      * OVERFLOW DEMO (tier 3): accumulators too small ON PURPOSE.
       * Record (11 bytes): ACCT X(4) | AMT 9(5)V99
       * Only behaviour the COBOL standard defines is used:
-      *  - WS-WRAP-TOTAL: MOVE from a larger field drops HIGH-ORDER digits
+      *  - WS-WRAP-TOTAL: MOVE from a larger field drops high digits
       *  - WS-SAFE-TOTAL: ON SIZE ERROR leaves the target unchanged
       *  - WS-HALF: no ROUNDED, so the result is truncated
       * The ON SIZE ERROR action is an out-of-line PERFORM. A nested
       * "ADD ... END-ADD" there is ambiguous and silently changes which
       * statements belong to the SIZE ERROR branch.
        IDENTIFICATION DIVISION.
-       PROGRAM-ID. OVERFLOW.
+       PROGRAM-ID. OVFLDEMO.
 
        ENVIRONMENT DIVISION.
        INPUT-OUTPUT SECTION.

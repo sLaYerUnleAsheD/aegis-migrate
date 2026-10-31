@@ -75,4 +75,5 @@ def test_parallel_workers_give_same_results(tmp_path):
 def test_discover_finds_tiers():
     names = {p.name for p in discover()}
     assert {"simple_interest.cbl", "payroll_report.cbl", "overflow_demo.cbl"} <= names
-    assert {p.name for p in discover(tier="tier2")} == {"payroll_report.cbl"}
+    assert {p.name for p in discover(tier="tier2")} >= {"payroll_report.cbl", "commission_tiers.cbl"}
+    assert all(p.parent.name == "tier2" for p in discover(tier="tier2"))

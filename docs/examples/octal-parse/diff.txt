@@ -1,0 +1,162 @@
+6a7
+> 	"strconv"
+20c21
+< var WsEofFlag string = "N"                  // PIC X len=1 = "N"
+---
+> var WsEofFlag string = "N"                         // PIC X len=1 = "N"
+23,26c24,27
+< var WsCount int64 = 0                       // PIC 9(5) len=5 = 0
+< var WsPrinEd string // PIC Z,ZZZ,ZZ9.99 len=12
+< var WsIntEd string  // PIC ZZZ,ZZZ,ZZ9.99 len=14
+< var WsTotalEd string // PIC ZZ,ZZZ,ZZZ,ZZ9.99 len=17
+---
+> var WsCount int64 = 0                              // PIC 9(5) len=5 = 0
+> var WsPrinEd string                                // PIC Z,ZZZ,ZZ9.99 len=12
+> var WsIntEd string                                 // PIC ZZZ,ZZZ,ZZ9.99 len=14
+> var WsTotalEd string                               // PIC ZZ,ZZZ,ZZZ,ZZ9.99 len=17
+40,41d40
+< 	// Truncate toward zero to scale first (COBOL store truncates without rounding unless ROUNDED)
+< 	// val is already at correct scale for our uses, but enforce
+43,45c42
+< 	// scaled integer = t * 10^scale
+< 	scaled := t.Shift(scale) // exact
+< 	// modulus = 10^(intDigits+scale)
+---
+> 	scaled := t.Shift(scale)
+47,48d43
+< 	// quotient truncated toward zero
+< 	// scaled / mod truncated
+51d45
+< 	// handle negative remainder: q trunc toward zero gives correct low-order digits with sign
+53d46
+< 	// Ensure scale exactly scale (for zero it may be 0)
+65,66c58
+< 		r += mod // not needed for positive, but keep
+< 		// For COBOL positive overflow, negative not expected
+---
+> 		r += mod
+72d63
+< 	// s is exactly width digits field, may contain spaces
+77,78d67
+< 	// remove any non-digit (should be digits only)
+< 	// Use filter digits and sign?
+96d84
+< 	// parse as integer
+125,126c113,125
+< 	var n int64
+< 	fmt.Sscan(t, &n)
+---
+> 	neg := false
+> 	if t[0] == '-' {
+> 		neg = true
+> 		t = t[1:]
+> 	}
+> 	// base 10 parse, leading zeros must be treated as decimal
+> 	n, err := strconv.ParseInt(t, 10, 64)
+> 	if err != nil {
+> 		return 0
+> 	}
+> 	if neg {
+> 		n = -n
+> 	}
+131d129
+< 	// pic contains Z , 9 . characters
+153,154d150
+< 
+< 	// absolute value for formatting (no sign handling needed)
+156,160c152
+< 	// Build string with exactly fracDigits fractional digits
+< 	// Use StringFixed which rounds, but we want exact truncated value; val already truncated to scale
+< 	// Ensure we get exact representation
+< 	sFixed := absVal.StringFixed(int32(fracDigits)) // may round but val already exactly scaled
+< 	// Split integer and fractional
+---
+> 	sFixed := absVal.StringFixed(int32(fracDigits))
+170d161
+< 		// pad fracStr to fracDigits
+180d170
+< 	// handle overflow: drop high-order digits
+184d173
+< 	// pad intStr left with zeros to intDigits
+188,191c177
+< 	digits := []rune(intStr) // length intDigits
+< 
+< 	// Build integer part output
+< 	// Walk through intPic characters and map digits
+---
+> 	digits := []rune(intStr)
+195,196d180
+< 	// For suppression, we need to know if any non-zero digit has been encountered up to current digit
+< 	// We'll iterate and for each digit position decide
+212,213d195
+< 					// still leading zero suppressed; check if all remaining digits are zero? No, suppression until first non-zero
+< 					// For zero value, all Z become spaces
+218,220c200
+< 			} else { // '9'
+< 				// 9 always prints, and if it's non-zero it also ends suppression for following (but 9 is usually last)
+< 				// Still need to mark seenNonZero if this digit is non-zero? Not needed after last, but for completeness
+---
+> 			} else {
+223,225d202
+< 				} else {
+< 					// if value is zero, 9 will be '0'
+< 					// if we never saw non-zero, we still print 0 for the 9
+236,238d212
+< 		// fracPic defines formatting, but for these pics it's all 9s
+< 		// Just append fracStr digits aligned to pic
+< 		// If fracPic contains Z's would need suppression but not here
+253d226
+< 	// Ensure length equals len(pic); should be
+264,265d236
+< // Paragraph functions
+< 
+273d243
+< 	// Pad to 21 with spaces if shorter
+280d249
+< 	// Parse into loanRec
+288,289d256
+< 	// COMPUTE WS-INTEREST ROUNDED = LR-PRINCIPAL * LR-RATE * LR-YEARS / 100
+< 	// Use decimal arithmetic
+291,292c258,259
+< 	tmp = tmp.Shift(-2) // divide by 100
+< 	rounded := tmp.Round(2) // half away from zero
+---
+> 	tmp = tmp.Shift(-2)
+> 	rounded := tmp.Round(2)
+294,295d260
+< 
+< 	// ADD WS-INTEREST TO WS-TOTAL
+298,299d262
+< 
+< 	// ADD 1 TO WS-COUNT
+302,303d264
+< 
+< 	// MOVE fields to edited
+306d266
+< 
+308d267
+< 
+323,324d281
+< 	// OPEN INPUT LOAN-FILE
+< 	// Already loaded
+329d285
+< 	// CLOSE LOAN-FILE (no action)
+334d289
+< 	// Load input.dat line sequential
+344,347d298
+< 		// Use scanner to preserve spaces: split on newline manually
+< 		// We need to handle both \n and \r\n
+< 		// Use bufio scanner with custom split preserving empty lines?
+< 		// Simple manual split:
+349,351d299
+< 		// Normalize \r\n to \n
+< 		// Use scanner to correctly handle lines without losing trailing spaces before newline (spaces are preserved)
+< 		// We'll use bufio.Scanner to split lines: it strips \r
+353d300
+< 		// Increase buffer for long lines
+359,360d305
+< 			// Scanner already stripped \n and \r, keep line as is (including trailing spaces? Scanner strips only newline, not spaces)
+< 			// However Scanner's Text returns line without line break, preserving spaces
+367,368d311
+< 		// Special case: if file was empty, lines is nil -> treat as empty
+< 		// If file ends with newline, scanner does not add extra empty line; COBOL LINE SEQUENTIAL would not have extra record. So fine.

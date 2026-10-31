@@ -292,15 +292,21 @@ def scope_warnings(raw: str, code: str, proc_sents: list[str], fds: set) -> list
     """Things the analyzer does NOT handle. Loud warnings beat silent wrong layouts."""
     w: list[str] = []
     free = cont = False
-    for line in raw.splitlines():
+    long_lines: list[int] = []
+    for n, line in enumerate(raw.splitlines(), 1):
         line = line.expandtabs(8)
         if len(line) < 7 or not line.strip() or line[6] in "*/":
             continue
+        if len(line.rstrip()) > 72:
+            long_lines.append(n)
         seq = line[:6].strip()
         if seq and not seq.isdigit():
             free = True
         if line[6] == "-":
             cont = True
+    if long_lines:
+        w.append(f"code runs past column 72 and the excess is IGNORED by cobc: lines "
+                 f"{', '.join(map(str, long_lines[:5]))}")
     if free:
         w.append("looks like FREE-format source; analyzer needs fixed format (cols 8-72)")
     if cont:

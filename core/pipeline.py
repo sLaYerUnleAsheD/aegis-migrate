@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 from cobol_adapter.analyzer import analyze, record_layout
-from cobol_adapter.inputgen import generate_cases
+from cobol_adapter.inputgen import generate_cases, load_hints
 from cobol_adapter.oracle import run_oracle
 from core import translate
 from core.llm import BudgetExceeded, LLMClient, LLMError, load_env
@@ -38,7 +38,8 @@ def migrate(cbl: Path, client, *, max_repairs: int = 3, effort="default", seed: 
     cbl = Path(cbl)
     src = cbl.read_text()
     res: dict = {"program": cbl.stem, "provider": client.provider, "model": client.model,
-                 "effort": str(effort), "sample": sample, "status": None, "single_shot_ok": False,
+                 "effort": (client.effective_effort(effort) if hasattr(client, "effective_effort") else str(effort)),
+                 "sample": sample, "status": None, "single_shot_ok": False,
                  "repairs_used": 0, "attempts": [], "total_cost_usd": 0.0}
 
     def finish(status: str, **extra) -> dict:
@@ -72,7 +73,8 @@ def migrate(cbl: Path, client, *, max_repairs: int = 3, effort="default", seed: 
 
     # 1. Golden outputs from the real COBOL program.
     cases = []
-    for c in generate_cases(record_layout(a), seed=seed, n_random=n_random, per_file=per_file):
+    for c in generate_cases(record_layout(a), seed=seed, n_random=n_random, per_file=per_file,
+                           hints=load_hints(cbl)):
         g = oracle(cbl, c.data)
         if not g.ok:
             return finish("oracle_failed", detail=g.compile_error or g.stderr.decode("utf-8", "replace")[:500])

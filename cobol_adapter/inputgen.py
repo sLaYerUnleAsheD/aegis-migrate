@@ -10,8 +10,10 @@ UnsupportedLayout; they arrive with the tier-3 work.
 """
 from __future__ import annotations
 
+import json
 import random
 from dataclasses import dataclass
+from pathlib import Path
 
 
 class UnsupportedLayout(Exception):
@@ -58,6 +60,16 @@ def typical_alnum(size: int, i: int = 1) -> str:
     return (f"ACC{i:03d}" + "ABCDEFGHIJKLMNOP" * 8)[:size]
 
 
+def load_hints(cbl: Path | str) -> dict:
+    """Optional <program>.hints.json next to the program: {"FIELD-NAME": [values]}.
+    Alphanumeric hints are strings; numeric hints are UNSCALED integers (1000.00 -> 100000).
+    Use them for codes the program branches on ('N', 'S', 'C') and for tier boundaries:
+    purely random letters would almost never reach those branches."""
+    path = Path(cbl)
+    hp = path.with_name(path.stem + ".hints.json")
+    return json.loads(hp.read_text()) if hp.exists() else {}
+
+
 # --------------------------------------------------------------- layout ----
 def expand_fields(layout: list[dict]) -> list[dict]:
     """Validate fields and expand OCCURS into separate positional fields."""
@@ -100,17 +112,30 @@ def format_record(fields: list[dict], values: dict[str, object]) -> bytes:
 
 
 # ---------------------------------------------------------------- cases ----
-def generate_records(layout: list[dict], seed: int = 0, n_random: int = 20) -> list[tuple[str, bytes]]:
-    """Return (label, record bytes). Order is deterministic for a given seed."""
+def generate_records(layout: list[dict], seed: int = 0, n_random: int = 20,
+                     hints: dict | None = None) -> list[tuple[str, bytes]]:
+    """Return (label, record bytes). Order is deterministic for a given seed.
+    Fields without hints behave exactly as before (same random stream)."""
     fields = expand_fields(layout)
     rng = random.Random(seed)
+    hints = hints or {}
+
+    def hint_values(f) -> list:
+        base = f["name"].split("(")[0]
+        raw = hints.get(base, [])
+        if f["category"] == "numeric":
+            return [int(v) for v in raw if 0 <= int(v) <= 10 ** f["digits"] - 1]
+        return [str(v).ljust(f["size"])[: f["size"]] for v in raw]
 
     def typical(i: int = 1) -> dict:
         return {f["name"]: (typical_numeric(f["digits"]) if f["category"] == "numeric"
                             else typical_alnum(f["size"], i)) for f in fields}
 
     def cands(f):
-        return numeric_candidates(f["digits"]) if f["category"] == "numeric" else alnum_candidates(f["size"])
+        extra = hint_values(f)
+        if f["category"] == "numeric":
+            return sorted(set(numeric_candidates(f["digits"])) | set(extra))
+        return extra + [c for c in alnum_candidates(f["size"]) if c not in extra]
 
     recs: list[tuple[str, bytes]] = []
     # One-factor-at-a-time: vary a single field across its boundary values.
@@ -128,10 +153,16 @@ def generate_records(layout: list[dict], seed: int = 0, n_random: int = 20) -> l
     for k in range(n_random):
         vals = {}
         for f in fields:
+            hv = hint_values(f)
             if f["category"] == "numeric":
-                # mix magnitudes so small and large values both appear
-                mag = rng.randint(1, f["digits"])
-                vals[f["name"]] = rng.randint(0, 10**mag - 1)
+                if hv and rng.random() < 0.5:          # only drawn when the field HAS hints
+                    vals[f["name"]] = rng.choice(hv)
+                else:
+                    # mix magnitudes so small and large values both appear
+                    mag = rng.randint(1, f["digits"])
+                    vals[f["name"]] = rng.randint(0, 10**mag - 1)
+            elif hv and rng.random() < 0.8:
+                vals[f["name"]] = rng.choice(hv)
             else:
                 vals[f["name"]] = "".join(rng.choice("ABCDEFGHJKLMNPQRSTUVWXYZ0123456789")
                                           for _ in range(f["size"]))
@@ -139,10 +170,11 @@ def generate_records(layout: list[dict], seed: int = 0, n_random: int = 20) -> l
     return recs
 
 
-def generate_cases(layout: list[dict], seed: int = 0, n_random: int = 20, per_file: int = 8) -> list[Case]:
+def generate_cases(layout: list[dict], seed: int = 0, n_random: int = 20, per_file: int = 8,
+                   hints: dict | None = None) -> list[Case]:
     """Chunk records into input files. Small files keep failing diffs readable
     and let the repair loop see which records break."""
-    recs = generate_records(layout, seed, n_random)
+    recs = generate_records(layout, seed, n_random, hints)
     cases = []
     for i in range(0, len(recs), per_file):
         chunk = recs[i: i + per_file]

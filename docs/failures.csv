@@ -1,0 +1,178 @@
+run,status,repairs_used,auto_tag,label,notes,first_failure,repair_diff
+meta/simple_interest/sample1,verified,1,compile_error,,,"BUILD ERROR:
+# go_harness
+./main.go:79:2: declared and not used: qd
+./main.go:119:25: scaledMod.QuotientRemainder undefined (type decimal.Decimal has no field or method QuotientRemainder)","--- first attempt
++++ final
+@@ -50,3 +50,2 @@
+ 	}
+-	// keep only digits, handle sign? assume digits
+ 	var v int64 = 0
+@@ -58,4 +57,2 @@
+ 			continue
+-		} else {
+-			// unexpected char, treat as 0? ignore
+ 		}
+@@ -66,7 +63,4 @@
+ func fitUnsigned(v decimal.Decimal, intDigits int, scale int) decimal.Decimal {
+-	// keep low-order digits that fit: modulo 10^(intDigits+scale) on scaled integer
+ 	totalDigits := intDigits + scale
+ 	mod := pow10Decimal(totalDigits)
+-	// work with truncated/rounded value already at scale; get scaled int
+-	// Use Truncate to avoid extra fraction
+ 	t := v.Truncate(int32(scale))
+@@ -75,8 +69,2 @@
+ 	scaled := a.Shift(int32(scale))
+-	// scaled should be integer
+-	qi := scaled.IntPart() // fits within 64? may overflow for large; use Mod
+-	// Use decimal mod to be safe
+-	qd := decimal.NewFromInt(qi)
+-	// If scaled exceeds int64, IntPart may overflow; fallback using Mod directly
+-	// Use decimal Mod
+ 	rem := scaled.Mod(mod)
+@@ -113,10 +101,4 @@
+ 	scaled := av.Shift(int32(decPlaceCount))
+-	// scaled integer value
+-	// Use string conversion via IntPart with mod handling for large? Values fit in int64 here.
+-	// To be safe use decimal mod/div
+ 	modInt := pow10Decimal(intPlaceCount + decPlaceCount)
+ 	scaledMod := scaled.Mod(modInt)
+-	intValDec := scaledMod.QuotientRemainder(pow10Decimal(decPlaceCount))
+-	_ = intValDec
+-	// simpler with int64 since sizes small (max 13 digits)
+ 	intPartInt := scaledMod.Div(pow10Decimal(decPlaceCount)).IntPart()
+@@ -129,5 +111,3 @@
+... 52 more diff lines"
+modal/discount_calc/sample0,verified,1,compile_error,,,"BUILD ERROR:
+# go_harness
+./main.go:279:2: declared and not used: n","--- first attempt
++++ final
+@@ -277,10 +277,4 @@
+ 	}
+-	// parse as integer
+-	n := decimal.NewFromInt(0)
+-	// use decimal to avoid overflow; parse via string
+-	// Build via decimal
+-	// Since up to 7 digits fits int64, we can parse int64
+ 	var iv int64
+ 	fmt.Sscanf(digits, ""%d"", &iv)
+-	// alternative: use decimal.NewFromString
+ 	// Use New with shift -2"
+modal/payroll_report/sample1,verified,1,value_mismatch,,,"[case-02] stdout_diff
+-ACC01·ACC·100.0···1.00·······130.00
+-ACC01·ACC·150.0···1.00·······205.00
+-ACC01·ACC·500.0···1.00·······730.00
+-··DEPT·ACC·EMPLOYEES:·006·TOTAL:·······1,065.60
+-GRAND·TOTAL·(00008):··········1,085.60
++ACC01·ACC·100.0···1.00·····9,040.00
++ACC01·ACC·150.0···1.00····16,540.00
++ACC01·ACC·500.0···1.00····69,040.00
++··DEPT·ACC·EMPLOYEES:·006·TOTAL:······94,620.60
++GRAND·TOTAL·(00008):·········94,640.60
+
+[case-03] stdout_diff
+-ACC01·ACC·555.5···1.00·······813.25
+-ACC01·ACC·999.8···1.00·····1,479.70
+-ACC01·ACC·999.9···1.00·····1,479.85
++ACC01·ACC·555.5···1.00····77,365.00
++ACC01·ACC·999.8···1.00···144,010.00
++ACC01·ACC·999.9···1.00···144,025.00
+-··DEPT·ACC·EMPLOYEES:·008·TOTAL:·······6,273.40
+-GRAND·TOTAL·(00008):··········6,273.40
++··DEPT·ACC·EMPLOYEES:·008·TOTAL:·····367,900.60
++GRAND·TOTAL·(00008):········367,900.60","--- first attempt
++++ final
+@@ -43,3 +43,2 @@
+ 	}
+-	// keep only digits, ignore sign for now
+ 	neg := false
+@@ -72,3 +71,2 @@
+ func storeField(val decimal.Decimal, intDigits int, scale int) decimal.Decimal {
+-	// truncate toward zero to scale (for already rounded values, no effect)
+ 	t := val.Truncate(int32(scale))
+@@ -76,3 +74,2 @@
+ 	iv := shifted.IntPart()
+-	// modulus base 10^(intDigits+scale)
+ 	total := intDigits + scale
+@@ -87,3 +84,2 @@
+ func formatEdited(val decimal.Decimal, picture string) string {
+-	// parse picture
+ 	dotIdx := strings.Index(picture, ""."")
+@@ -109,21 +105,9 @@
+ 	}
+-	// integer part handling with high-order truncation
+-	// val may be negative, handle sign separately (not needed for this program but implement)
+ 	neg := val.Sign() < 0
+ 	absVal := val.Abs()
+-	// We need integer part of absVal truncated to decPlaceCount? val already has correct scale,
+-	// but to be safe, truncate to decPlaceCount
+ 	intPartDec := absVal.Truncate(int32(decPlaceCount))
+-	// For formatting we want exact decimal digits: get integer portion
+-	// integer portion = floor(absVal) but with respect to decPlaceCount, the integer part is before decimal.
+-	// Use Shift to get scaled integer and extract
+-	// Get integer digits (before decimal) as integer
+-	// Use IntPart of truncated value
+-	intPart := intPartDec.IntPart() // abs integer part
+-	// apply high-order truncation: modulo 10^intPlaceCount
++	intPart := intPartDec.IntPart()
+ 	if intPlaceCount > 0 {
+ 		pow := int64(1)
+-		overflow := false
+ 		for i := 0; i < intPlaceCount; i++ {
+-			// check overflow beyond int64, but pictures are at most 7-8 digits, safe
+... 111 more diff lines"
+modal/simple_interest/sample0,verified,1,zero_result,,,"[case-05] stdout_diff
+-02CS87····50,887.43·····238,804.53
++02CS87····50,887.43···········0.00
+-1A7XRW·········0.24···········0.01
+-4FFW87·········0.38···········0.22
++1A7XRW·········0.24···········0.00
++4FFW87·········0.38···········0.00
+-TOTAL·INTEREST:····990,144,283.79
++TOTAL·INTEREST:····989,905,479.03
+
+[case-06] stdout_diff
+-MCS6EF·········8.97···········0.03
++MCS6EF·········8.97···········0.00
+-TOTAL·INTEREST:········376,616.85
++TOTAL·INTEREST:········376,616.82","--- first attempt
++++ final
+@@ -6,2 +6,3 @@
+ 	""os""
++	""strconv""
+ 	""strings""
+@@ -19,9 +20,9 @@
+ // Standalone working-storage items (VALUE shown after '=')
+-var WsEofFlag string = ""N""                  // PIC X len=1 = ""N""
++var WsEofFlag string = ""N""                         // PIC X len=1 = ""N""
+ var WsInterest decimal.Decimal = decimal.New(0, 0) // PIC 9(9)V99 len=11 = 0
+ var WsTotal decimal.Decimal = decimal.New(0, 0)    // PIC 9(11)V99 len=13 = 0
+-var WsCount int64 = 0                       // PIC 9(5) len=5 = 0
+-var WsPrinEd string // PIC Z,ZZZ,ZZ9.99 len=12
+-var WsIntEd string  // PIC ZZZ,ZZZ,ZZ9.99 len=14
+-var WsTotalEd string // PIC ZZ,ZZZ,ZZZ,ZZ9.99 len=17
++var WsCount int64 = 0                              // PIC 9(5) len=5 = 0
++var WsPrinEd string                                // PIC Z,ZZZ,ZZ9.99 len=12
++var WsIntEd string                                 // PIC ZZZ,ZZZ,ZZ9.99 len=14
++var WsTotalEd string                               // PIC ZZ,ZZZ,ZZZ,ZZ9.99 len=17
+ 
+@@ -39,16 +40,8 @@
+ func storeDecimal(val decimal.Decimal, intDigits int, scale int32) decimal.Decimal {
+-	// Truncate toward zero to scale first (COBOL store truncates without rounding unless ROUNDED)
+-	// val is already at correct scale for our uses, but enforce
+ 	t := val.Truncate(scale)
+-	// scaled integer = t * 10^scale
+-	scaled := t.Shift(scale) // exact
+-	// modulus = 10^(intDigits+scale)
++	scaled := t.Shift(scale)
+ 	mod := decimal.New(1, int32(intDigits)+scale)
+-	// quotient truncated toward zero
+-	// scaled / mod truncated
+ 	q := scaled.Div(mod).Truncate(0)
+ 	modded := scaled.Sub(q.Mul(mod))
+-	// handle negative remainder: q trunc toward zero gives correct low-order digits with sign
+ 	result := modded.Shift(-scale)
+-	// Ensure scale exactly scale (for zero it may be 0)
+ 	result = result.Truncate(scale)
+@@ -64,4 +57,3 @@
+... 179 more diff lines"

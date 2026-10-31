@@ -246,6 +246,11 @@ class LLMClient:
             pl["temperature"] = temperature
         return pl
 
+    def effective_effort(self, effort="default") -> str:
+        """The reasoning effort actually sent ("none" if nothing is sent)."""
+        eff = self.p.default_effort if effort == "default" else effort
+        return eff or "none"
+
     # --- the one public method
     def call(self, prompt: str, *, system: str | None = None, effort: str | None = "default",
              temperature: float | None = None, max_output_tokens: int | None = None,
