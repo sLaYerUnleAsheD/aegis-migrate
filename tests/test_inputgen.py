@@ -53,3 +53,13 @@ def test_signed_and_comp3_are_rejected_not_guessed():
 def test_cases_chunking_covers_all_records():
     cs = generate_cases(layout(), seed=0, per_file=8)
     assert sum(c.records for c in cs) == len(generate_records(layout(), seed=0))
+
+
+def test_extra_records_are_appended_last_and_leave_the_random_stream_alone():
+    from cobol_adapter.inputgen import generate_records
+    lay = layout()
+    base = generate_records(lay, seed=5, n_random=4)
+    extra = [b"XYZ123000100000050003"]
+    withx = generate_records(lay, seed=5, n_random=4, extra=extra)
+    assert withx[: len(base)] == base                     # nothing before the extras changed
+    assert withx[-1] == ("sample-0", extra[0]) and len(withx) == len(base) + 1

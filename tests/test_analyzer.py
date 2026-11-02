@@ -109,3 +109,13 @@ def test_scope_warnings():
     copy = SRC_LITERAL.replace("PROCEDURE DIVISION.", "       COPY CUSTREC.\n       PROCEDURE DIVISION.")
     assert any("COPY" in w for w in analyze(copy).warnings)
     assert analyze(Path("benchmark/programs/tier1/simple_interest.cbl").read_text()).warnings == []
+
+
+def test_code_past_column_72_is_flagged_but_comments_are_not():
+    long_code = "       " + "DISPLAY " + "\"" + "x" * 70 + "\"."
+    src = ("      * " + "c" * 80 + "\n"
+           "       IDENTIFICATION DIVISION.\n       PROGRAM-ID. T.\n"
+           "       PROCEDURE DIVISION.\n       MAIN-PARA.\n" + long_code + "\n")
+    warns = analyze(src).warnings
+    assert any("column 72" in w and "6" in w for w in warns)       # the long CODE line (line 6)
+    assert not any("lines 1" in w for w in warns)                   # the long comment (line 1) is fine

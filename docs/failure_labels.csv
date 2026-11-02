@@ -1,0 +1,36 @@
+run,label,notes
+baseten/tax_calc/sample1,compile: integer or struct type mismatch,StringFixed takes int32; int64 passed
+meta/bank_ledger/sample1,COBOL formatting: numeric-edited or zoned output,edited field printed 000 instead of 0.00: decimal point dropped
+meta/commission_tiers/sample2,compile: integer or struct type mismatch,[]slot passed where []struct{...} expected; needed 2 repairs
+meta/order_check/sample2,compile: hallucinated or misused library API,decimal.QuoRem called with wrong arguments; also an unused variable
+meta/overflow_demo/sample4,COBOL formatting: numeric-edited or zoned output,zero suppression missing: 010.00 printed instead of 10.00
+meta/payroll_report/sample0,compile: unused variable,modInt
+meta/simple_interest/sample1,compile: hallucinated or misused library API,decimal.Decimal.QuotientRemainder does not exist; also unused qd
+meta/tax_calc/sample2,compile: hallucinated or misused library API,decimal.QuoRem called with nil and one result
+meta/temp_convert/sample1,compile: syntax error,"extra closing parenthesis; the 2nd repair also fixed decimal.New(n, scale) to (n, -scale)"
+modal/bank_ledger/sample0,compile: unused variable,modVal
+modal/bank_ledger/sample1,runtime: index out of range in edited-picture formatter,formatter indexed past the digit slice for the fraction
+modal/bank_ledger/sample3,runtime: index out of range in edited-picture formatter,"same crash, different attempt"
+modal/bank_ledger/sample4,runtime: index out of range in edited-picture formatter,"same crash, different attempt"
+modal/commission_tiers/sample3,compile: unused variable,intPart
+modal/discount_calc/sample0,compile: unused variable,n
+modal/discount_calc/sample3,library semantics: fmt.Sscan reads a leading zero as octal,08 and 09 parsed as 0 (percentage field)
+modal/discount_calc/sample4,compile: hallucinated or misused library API,Decimal.GreaterOrEqual does not exist (it is GreaterThanOrEqual); needed 2 repairs
+modal/interest_schedule/sample3,compile: unused variable,intPlaceholderCounter
+modal/interest_schedule/sample4,compile: unused variable,modCents
+modal/order_check/sample0,compile: unused variable,priceDigits
+modal/order_check/sample1,compile: unused variable,mod
+modal/order_check/sample2,compile: unused variable,pow
+modal/order_check/sample4,compile: unused variable,decPic
+modal/overflow_demo/sample1,compile: integer or struct type mismatch,int + int32 in one expression
+modal/overflow_demo/sample2,compile: unused variable,n; needed 2 repairs
+modal/overflow_demo/sample3,I/O: input reading dropped records,output stopped after 4 of 8 records
+modal/payroll_report/sample1,library semantics: decimal.New exponent sign,"decimal.New(15, 1) is 150, not 1.5: overtime pay 100x too large"
+modal/simple_interest/sample0,library semantics: fmt.Sscan reads a leading zero as octal,08 and 09 parsed as 0 (years field)
+modal/simple_interest/sample3,library semantics: fmt.Sscan reads a leading zero as octal,same bug; needed 2 repairs
+modal/simple_interest/sample4,compile: hallucinated or misused library API,Decimal.GreaterOrEqual does not exist
+modal/tax_calc/sample0,compile: hallucinated or misused library API,"decimal.NewFromString returns (value, error); used as one value"
+modal/tax_calc/sample1,COBOL formatting: numeric-edited or zoned output,PIC 9(3) count printed as 8 instead of 008
+modal/tax_calc/sample3,compile: hallucinated or misused library API,decimal.NewFromString returns two values
+modal/temp_convert/sample0,compile: unused variable,seenNonZero; needed 2 repairs
+modal/temp_convert/sample3,library semantics: fmt.Sscan reads a leading zero as octal,"4-digit field 0100 read as octal 64, so 10.0F became 6.4F"

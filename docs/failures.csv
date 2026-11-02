@@ -1,0 +1,1251 @@
+run,status,repairs_used,auto_tag,label,notes,first_failure,repair_diff
+baseten/tax_calc/sample1,verified,1,compile_error,compile: integer or struct type mismatch,StringFixed takes int32; int64 passed,"BUILD ERROR:
+# go_harness
+./main.go:74:21: cannot use int64(scale) (value of type int64) as int32 value in argument to v.StringFixed
+./main.go:137:23: cannot use int64(decDigits) (value of type int64) as int32 value in argument to val.StringFixed","--- first attempt
++++ final
+@@ -60,3 +60,3 @@
+ }
+-s := v.StringFixed(int64(scale))
++s := v.StringFixed(int32(scale))
+ var intPart, fracPart string
+@@ -120,3 +120,3 @@
+ val = val.Truncate(int32(decDigits))
+-s := val.StringFixed(int64(decDigits))
++s := val.StringFixed(int32(decDigits))
+ var intStr, fracStr string"
+meta/bank_ledger/sample1,verified,1,number_format,COBOL formatting: numeric-edited or zoned output,edited field printed 000 instead of 0.00: decimal point dropped,"[case-01] stdout_diff
+-··ACCOUNT·ACC0·BALANCE:·········0.00
+-·BRANCH·N1·TOTAL:···········0.00
++··ACCOUNT·ACC0·BALANCE:·········000
++·BRANCH·N1·TOTAL:···········000
+-··ACCOUNT·ACC0·BALANCE:·········0.00
+-·BRANCH·S2·TOTAL:···········0.00
++··ACCOUNT·ACC0·BALANCE:·········000
++·BRANCH·S2·TOTAL:···········000
+-··ACCOUNT·ACC0·BALANCE:·········0.00
+-·BRANCH·AA·TOTAL:···········0.00
++··ACCOUNT·ACC0·BALANCE:·········000
++·BRANCH·AA·TOTAL:···········000
+... 20 more differing lines
+
+[case-02] stdout_diff
+-··ACCOUNT·B001·BALANCE:·········0.00
++··ACCOUNT·B001·BALANCE:·········000
+-··ACCOUNT·AAAA·BALANCE:·········0.00
++··ACCOUNT·AAAA·BALANCE:·········000
+-··ACCOUNT·ZZZZ·BALANCE:·········0.00
++··ACCOUNT·ZZZZ·BALANCE:·········000
+-··ACCOUNT·AB12·BALANCE:·········0.00
++··ACCOUNT·AB12·BALANCE:·········000
+-··ACCOUNT·X····BALANCE:·········0.00
++··ACCOUNT·X····BALANCE:·········000
+-··ACCOUNT·A1A1·BALANCE:·········0.00
+-ACC0·D·····10.00
+... 10 more differing lines","--- first attempt
++++ final
+@@ -171,3 +171,3 @@
+ }
+-out = append(out, byte('0'+f1), byte('0'+f2))
++out = append(out, '.', byte('0'+f1), byte('0'+f2))
+ return string(out)"
+meta/commission_tiers/sample2,verified,2,compile_error,compile: integer or struct type mismatch,[]slot passed where []struct{...} expected; needed 2 repairs,"BUILD ERROR:
+# go_harness
+./main.go:196:57: cannot use slots (variable of type []slot) as []struct{ch byte; digIdx int} value in argument to countDigitsBefore","--- first attempt
++++ final
+@@ -69,3 +69,2 @@
+ rv := v.Round(int32(decPlaces))
+-neg := rv.IsNegative()
+ abs := rv.Abs()
+@@ -138,16 +137,7 @@
+ var b strings.Builder
+-for _, s := range slots {
++for idx, s := range slots {
+ if s.digIdx == -1 {
+-hasNonSupp := false
+-for _, s2 := range slots {
+-if s2.digIdx != -1 && s2.digIdx < countDigitsBefore(slots, s) {
+-_ = s2
+-}
+-}
+-_ = hasNonSupp
+ leftHasVisible := false
+-for _, s2 := range slots {
+-if s2 == s {
+-break
+-}
++for j := 0; j < idx; j++ {
++s2 := slots[j]
+ if s2.digIdx != -1 {
+@@ -177,30 +167,3 @@
+ out := b.String()
+-if neg {
+-for i := 0; i < len(out); i++ {
+-if out[i] == ' ' {
+-continue
+-}
+-}
+-bs := []byte(out)
+-idx := -1
+-for i := len(bs) - 1; i >= 0; i-- {
+-if bs[i] == ' ' {
+-idx = i
+-} else {
+... 41 more diff lines"
+meta/order_check/sample2,verified,1,compile_error,compile: hallucinated or misused library API,decimal.QuoRem called with wrong arguments; also an unused variable,"BUILD ERROR:
+# go_harness
+./main.go:58:2: declared and not used: q
+./main.go:58:7: assignment mismatch: 1 variable but a.QuoRem returns 2 values
+./main.go:58:21: cannot use mod (variable of struct type decimal.Decimal) as int32 value in argument to a.QuoRem","--- first attempt
++++ final
+@@ -41,7 +41,5 @@
+ mod := decimal.New(1, int32(totalDigits))
+-scaled := t.Shift(scale)
+-scaled = scaled.Truncate(0)
++scaled := t.Shift(scale).Truncate(0)
+ neg := scaled.IsNegative()
+ a := scaled.Abs()
+-q := a.QuoRem(mod, mod)
+ m := a.Mod(mod)
+@@ -178,7 +176,3 @@
+ if i == len(raw)-1 {
+-if len(raw) > 1 || line != """" {
+ if line == """" {
+-continue
+-}
+-} else {
+ continue"
+meta/overflow_demo/sample4,verified,1,number_format,COBOL formatting: numeric-edited or zoned output,zero suppression missing: 010.00 printed instead of 10.00,"[case-01] stdout_diff
+-AAAA·····10.00·····10.00·····10.00······5.0
+-ZZZZ·····10.00·····20.00·····20.00······5.0
+-AB12·····10.00·····30.00·····30.00······5.0
+-X········10.00·····40.00·····40.00······5.0
+-A1A1·····10.00·····50.00·····50.00······5.0
+-ACC0······0.00·····50.00·····50.00······0.0
+-ACC0······0.01·····50.01·····50.01······0.0
+-ACC0······0.05·····50.06·····50.06······0.0
++AAAA····010.00····010.00····010.00·····05.0
++ZZZZ····010.00····020.00····020.00·····05.0
++AB12····010.00····030.00····030.00·····05.0
++X·······010.00····040.00····040.00·····05.0
+... 4 more differing lines
+
+[case-03] stdout_diff
+-X6GY·····51.80·17,658.22·17,658.22·····25.9
++X6GY····051.80·17,658.22·17,658.22····025.9","--- first attempt
++++ final
+@@ -76,8 +76,4 @@
+ } else {
+-frac = -( (-cents) % fracMod )
+-intPart = -( (-cents / fracMod) % intMod )
+-}
+-neg := false
+-if cents < 0 {
+-neg = true
++frac = -((-cents) % fracMod)
++intPart = -((-cents / fracMod) % intMod)
+ }
+@@ -95,4 +91,2 @@
+ }
+-out := make([]byte, 9)
+-seen := false
+ firstNZ := -1
+@@ -109,4 +103,2 @@
+ } else {
+-if 0 < firstNZ || d[0] != 0 {
+-}
+ if 0 >= firstNZ {
+@@ -121,8 +113,8 @@
+ }
++if 2 >= firstNZ {
++c3 = byte('0' + d[2])
++} else {
++c3 = ' '
++}
+ if 3 >= firstNZ {
+-c3 = byte('0' + d[2])
+-} else {
+-c3 = ' '
+-}
+-if 4 >= firstNZ {
+ c4 = byte('0' + d[3])
+@@ -132,3 +124,2 @@
+ c5 = byte('0' + d[4])
+-_ = seen
+... 41 more diff lines"
+meta/payroll_report/sample0,verified,1,compile_error,compile: unused variable,modInt,"BUILD ERROR:
+# go_harness
+./main.go:234:2: declared and not used: modInt","--- first attempt
++++ final
+@@ -128,28 +128,2 @@
+ if sigPos < slotIdx {
+-b.WriteByte(' ')
+-} else {
+-b.WriteByte(',')
+-}
+-default:
+-b.WriteByte(byte(ch))
+-}
+-}
+-b.Reset()
+-slotIdx = 0
+-for _, ch := range intPic {
+-switch ch {
+-case 'Z', '9':
+-d := padded[slotIdx]
+-if slotIdx < sigPos {
+-if ch == 'Z' {
+-b.WriteByte(' ')
+-} else {
+-b.WriteByte(d)
+-}
+-} else {
+-b.WriteByte(d)
+-}
+-slotIdx++
+-case ',':
+-if sigPos < slotIdx {
+ b.WriteByte(',')
+@@ -194,3 +168,2 @@
+ func modDecimal(v decimal.Decimal, intDigits int, scale int32) decimal.Decimal {
+-modInt := decimal.NewFromInt(1).Shift(int32(intDigits))
+ scaled := v.Shift(scale).Truncate(0)
+@@ -272,3 +245,2 @@
+ if Emp.ErHours.GreaterThan(forty) {
+-WsRegHours = decimal.NewFromInt(40)
+ WsRegHours = decimal.New(400, -1)"
+meta/simple_interest/sample1,verified,1,compile_error,compile: hallucinated or misused library API,decimal.Decimal.QuotientRemainder does not exist; also unused qd,"BUILD ERROR:
+# go_harness
+./main.go:79:2: declared and not used: qd
+./main.go:119:25: scaledMod.QuotientRemainder undefined (type decimal.Decimal has no field or method QuotientRemainder)","--- first attempt
++++ final
+@@ -47,3 +47,2 @@
+ continue
+-} else {
+ }
+@@ -59,4 +58,2 @@
+ scaled := a.Shift(int32(scale))
+-qi := scaled.IntPart()
+-qd := decimal.NewFromInt(qi)
+ rem := scaled.Mod(mod)
+@@ -94,4 +91,2 @@
+ scaledMod := scaled.Mod(modInt)
+-intValDec := scaledMod.QuotientRemainder(pow10Decimal(decPlaceCount))
+-_ = intValDec
+ intPartInt := scaledMod.Div(pow10Decimal(decPlaceCount)).IntPart()"
+meta/tax_calc/sample2,verified,1,compile_error,compile: hallucinated or misused library API,decimal.QuoRem called with nil and one result,"BUILD ERROR:
+# go_harness
+./main.go:57:7: assignment mismatch: 1 variable but cents.QuoRem returns 2 values
+./main.go:57:45: cannot use nil as int32 value in argument to cents.QuoRem","--- first attempt
++++ final
+@@ -41,4 +41,2 @@
+ }
+-q := cents.QuoRem(decimal.NewFromInt(mod), nil)
+-_ = q
+ m := cents.Mod(decimal.NewFromInt(mod))
+@@ -147,11 +145,3 @@
+ s := string(out)
+-if neg {
+-b := []byte(s)
+-for i := dotIdx - 1; i >= 0; i-- {
+-if b[i] == ' ' {
+-continue
+-}
+-}
+-_ = b
+-}
++_ = neg
+ return s
+@@ -270,6 +260,2 @@
+ limit2 := decimal.New(40000, 0)
+-rate10 := decimal.NewFromFloat(0.10)
+-rate20 := decimal.NewFromFloat(0.20)
+-rate30 := decimal.NewFromFloat(0.30)
+-_ = rate10
+ r10 := decimal.New(1, -1)
+@@ -296,6 +282,2 @@
+ }
+-_ = thousand
+-_ = sevenThousand
+-_ = rate20
+-_ = rate30
+ vnet := taxRec.TrIncome.Sub(WsTax).Truncate(2)"
+meta/temp_convert/sample1,verified,2,compile_error,compile: syntax error,"extra closing parenthesis; the 2nd repair also fixed decimal.New(n, scale) to (n, -scale)","BUILD ERROR:
+# go_harness
+./main.go:244:102: syntax error: unexpected ) at end of statement","--- first attempt
++++ final
+@@ -89,7 +89,5 @@
+ frac := scaled % 100
+-sign := ' '
+-if neg {
+-if scaled != 0 {
++sign := byte(' ')
++if neg && scaled != 0 {
+ sign = '-'
+-}
+ }
+@@ -98,3 +96,3 @@
+ f1 := byte(frac % 10)
+-return string([]byte{byte(sign)}) + intStr + ""."" + string([]byte{'0' + f0, '0' + f1})
++return string([]byte{sign}) + intStr + ""."" + string([]byte{'0' + f0, '0' + f1})
+ }
+@@ -140,3 +138,3 @@
+ }
+-return decimal.New(n, scale)
++return decimal.New(n, -scale)
+ }
+@@ -220,3 +218,3 @@
+ }
+-fmt.Printf(""%s%s%s%s\n"", ""READINGS: "", formatPic99(WsCount), "" BELOW ZERO: "", formatPic99(WsFreeze)))
++fmt.Printf(""%s%s%s%s\n"", ""READINGS: "", formatPic99(WsCount), "" BELOW ZERO: "", formatPic99(WsFreeze))
+ }"
+modal/bank_ledger/sample0,verified,1,compile_error,compile: unused variable,modVal,"BUILD ERROR:
+# go_harness
+./main.go:53:2: declared and not used: modVal","--- first attempt
++++ final
+@@ -30,9 +30,2 @@
+ func isFirstRecord() bool { return WsFirstFlag == ""Y"" }
+-func intPow10(n int) int64 {
+-var p int64 = 1
+-for i := 0; i < n; i++ {
+-p *= 10
+-}
+-return p
+-}
+ func storeFixed(v decimal.Decimal, intDigits, scale int) decimal.Decimal {
+@@ -40,3 +33,2 @@
+ scaled := v.Shift(int32(scale))
+-modVal := intPow10(intDigits + scale)
+ modDec := decimal.New(1, int32(intDigits+scale))
+@@ -209,7 +201,3 @@
+ brAmtStr := line[7:14]
+-brAmtStrTrim := strings.TrimSpace(brAmtStr)
+ var amt decimal.Decimal
+-if brAmtStrTrim == """" {
+-amt = decimal.New(0, 0)
+-} else {
+ clean := strings.TrimSpace(brAmtStr)
+@@ -225,7 +213,4 @@
+ } else {
+-dInt := decimal.RequireFromString(ds)
+-amt = decimal.New(dInt.IntPart(), -2)
+ val, _ := decimal.NewFromString(ds)
+ amt = val.Shift(-2)
+-}
+ }"
+modal/bank_ledger/sample1,verified,1,runtime_crash,runtime: index out of range in edited-picture formatter,formatter indexed past the digit slice for the fraction,"[case-01] crash
+exit code 2
+panic: runtime error: index out of range [5] with length 5
+
+goroutine 1 [running]:
+main.formatPic({0x2a559518720?, 0x59524180?}, {0x4e2ad0?, 0x3e8?})
+	go_harness/main.go:157 +0x1855
+main.moveAmtEd(...)
+	go_harness/main.go:233
+main.POST_PARA()
+	go_harness/main.go:339 +0x30
+main.PROCESS_PARA()
+	go_harness/main.go:334 +0x1f8
+main.MAIN_PARA()
+	go_harness/main.go:289 +0x1cc
+main.main()
+	go_harness/main.go:374 +0xf
+
+
+[case-02] crash
+exit code 2
+panic: runtime error: index out of range [5] with length 5
+
+goroutine 1 [running]:
+main.formatPic({0x1cd569fa6700?, 0x69f88180?}, {0x4e2ad0?, 0x3e8?})
+	go_harness/main.go:157 +0x1855
+main.moveAmtEd(...)
+	go_harness/main.go:233
+main.POST_PARA()
+	go_harness/main.go:339 +0x30
+main.PROCESS_PARA()
+	go_harness/main.go:334 +0x1f8
+main.MAIN_PARA()
+	go_harness/main.go:289 +0x1cc
+main.main()
+	go_harness/main.go:374 +0xf
+","--- first attempt
++++ final
+@@ -69,3 +69,3 @@
+ for _, ch := range fracPicPart {
+-if ch == '9' {
++if ch == '9' || ch == 'Z' {
+ scale++
+@@ -125,33 +125,2 @@
+ significantStarted := false
+-for _, ch := range pic {
+-switch ch {
+-case 'Z', '9':
+-if suppressed[digitIdx] {
+-coreBuilder.WriteByte(' ')
+-} else {
+-coreBuilder.WriteByte(digits[digitIdx])
+-significantStarted = true
+-}
+-digitIdx++
+-if !suppressed[digitIdx-1] {
+-significantStarted = true
+-}
+-case ',':
+-if significantStarted {
+-coreBuilder.WriteByte(',')
+-} else {
+-coreBuilder.WriteByte(' ')
+-}
+-case '.':
+-coreBuilder.WriteByte('.')
+-default:
+-coreBuilder.WriteByte(byte(ch))
+-}
+-}
+-if scale > 0 {
+-}
+-if scale > 0 {
+-coreBuilder.Reset()
+-digitIdx = 0
+-significantStarted = false
+... 16 more diff lines"
+modal/bank_ledger/sample3,verified,1,runtime_crash,runtime: index out of range in edited-picture formatter,"same crash, different attempt","[case-01] crash
+exit code 2
+panic: runtime error: index out of range [5] with length 5
+
+goroutine 1 [running]:
+main.formatEdit({0xd54b84ac6c0?, 0x4bb286?}, {0x4e4f8f, 0x9})
+	go_harness/main.go:160 +0x7fe
+main.POST_PARA()
+	go_harness/main.go:310 +0x38
+main.PROCESS_PARA()
+	go_harness/main.go:342 +0x1f8
+main.MAIN_PARA()
+	go_harness/main.go:376 +0x198
+main.main()
+	go_harness/main.go:397 +0x165
+
+
+[case-02] crash
+exit code 2
+panic: runtime error: index out of range [5] with length 5
+
+goroutine 1 [running]:
+main.formatEdit({0x8a4f63aa6c0?, 0x4bb286?}, {0x4e4f8f, 0x9})
+	go_harness/main.go:160 +0x7fe
+main.POST_PARA()
+	go_harness/main.go:310 +0x38
+main.PROCESS_PARA()
+	go_harness/main.go:342 +0x1f8
+main.MAIN_PARA()
+	go_harness/main.go:376 +0x198
+main.main()
+	go_harness/main.go:397 +0x165
+","--- first attempt
++++ final
+@@ -58,6 +58,3 @@
+ func formatEdit(v decimal.Decimal, picture string) string {
+-hasSign := false
+-if len(picture) > 0 && picture[0] == '-' {
+-hasSign = true
+-}
++hasSign := len(picture) > 0 && picture[0] == '-'
+ dotIdxPic := strings.Index(picture, ""."")
+@@ -120,2 +117,3 @@
+ digitIdx := 0
++fracIdx := 0
+ suppress := true
+@@ -126,2 +124,9 @@
+ case 'Z', '9':
++isIntPart := false
++if dotIdxPic == -1 {
++isIntPart = true
++} else {
++isIntPart = i < dotIdxPic
++}
++if isIntPart {
+ d := rune(intStr[digitIdx])
+@@ -139,2 +144,7 @@
+ }
++} else {
++d := rune(fracStr[fracIdx])
++fracIdx++
++out[i] = d
++}
+ case ',':
+@@ -150,40 +160,2 @@
+ out[i] = ch
+-}
+-}
+-digitIdx = 0
+-fracIdx := 0
+-suppress = true
+-for i, ch := range picRunes {
+... 33 more diff lines"
+modal/bank_ledger/sample4,verified,1,runtime_crash,runtime: index out of range in edited-picture formatter,"same crash, different attempt","[case-01] crash
+exit code 2
+panic: runtime error: index out of range [5] with length 5
+
+goroutine 1 [running]:
+main.formatEdited({0x24181e1f2720?, 0xfffffffe?}, 0x5, {0x4f04d4?, 0x1?})
+	go_harness/main.go:117 +0x8aa
+main.formatAmtEd({0x24181e1f2720?, 0x1e1b0200?})
+	go_harness/main.go:202 +0x2e
+main.POST_PARA()
+	go_harness/main.go:347 +0x25
+main.PROCESS_PARA()
+	go_harness/main.go:342 +0x1f8
+main.MAIN_PARA()
+	go_harness/main.go:278 +0x190
+main.main()
+	go_harness/main.go:387 +0x98
+
+
+[case-02] crash
+exit code 2
+panic: runtime error: index out of range [5] with length 5
+
+goroutine 1 [running]:
+main.formatEdited({0x256b4aeb0720?, 0xfffffffe?}, 0x5, {0x4f04d4?, 0x1?})
+	go_harness/main.go:117 +0x8aa
+main.formatAmtEd({0x256b4aeb0720?, 0x4ae6e200?})
+	go_harness/main.go:202 +0x2e
+main.POST_PARA()
+	go_harness/main.go:347 +0x25
+main.PROCESS_PARA()
+	go_harness/main.go:342 +0x1f8
+main.MAIN_PARA()
+	go_harness/main.go:278 +0x190
+main.main()
+	go_harness/main.go:387 +0x98
+","--- first attempt
++++ final
+@@ -61,7 +61,14 @@
+ picRunes := []rune(pic)
+-nDigits := 0
+-for _, c := range picRunes {
+-if c == 'Z' || c == '9' {
+-nDigits++
+-}
++dotIdx := -1
++for i, c := range picRunes {
++if c == '.' {
++dotIdx = i
++break
++}
++}
++var intPicRunes []rune
++if dotIdx >= 0 {
++intPicRunes = picRunes[:dotIdx]
++} else {
++intPicRunes = picRunes
+ }
+@@ -71,3 +78,6 @@
+ fracDec := scaled.Sub(q100.Mul(mod100))
+-fracInt := fracDec.IntPart()
++fracInt := fracDec.Abs().IntPart()
++if fracInt < 0 {
++fracInt = -fracInt
++}
+ intPartDec := q100.Abs()
+@@ -81,2 +91,5 @@
+ }
++if intPartInt < 0 {
++intPartInt = -intPartInt
++}
+ digits := make([]int, intDigits)
+@@ -89,3 +102,3 @@
+ di := 0
+-for _, c := range picRunes {
++for _, c := range intPicRunes {
+... 30 more diff lines"
+modal/commission_tiers/sample3,verified,1,compile_error,compile: unused variable,intPart,"BUILD ERROR:
+# go_harness
+./main.go:144:2: declared and not used: intPart","--- first attempt
++++ final
+@@ -48,5 +48,2 @@
+ }
+-func truncateToScale(d decimal.Decimal, scale int32) decimal.Decimal {
+-return d.Truncate(scale)
+-}
+ func storeComm(v decimal.Decimal) decimal.Decimal {
+@@ -113,3 +110,2 @@
+ av = av.Truncate(int32(fracDigits))
+-intPart := av.IntPart()
+ scaled := av.Shift(int32(fracDigits))
+@@ -127,3 +123,2 @@
+ out := []rune(picture)
+-intPos := 0
+ digitIdx := 0
+@@ -143,5 +138,3 @@
+ digitIdx++
+-} else {
+-}
+-_ = intPos
++}
+ }
+@@ -169,4 +162,2 @@
+ }
+-ch := rune(picture[i])
+-if ch == 'Z' || ch == '9' || (out[i] >= '0' && out[i] <= '9') {
+ orig := rune(picture[i])
+@@ -178,4 +169,2 @@
+ if orig == '9' {
+-if suppressed {
+-}
+ suppressed = false
+@@ -191,4 +180,2 @@
+ }
+-}
+-seenNonSpaceDigit := false
+ for i := 0; i < len(picture); i++ {
+@@ -217,9 +204,4 @@
+ out[i] = ' '
+... 16 more diff lines"
+modal/discount_calc/sample0,verified,1,compile_error,compile: unused variable,n,"BUILD ERROR:
+# go_harness
+./main.go:279:2: declared and not used: n","--- first attempt
++++ final
+@@ -210,3 +210,2 @@
+ }
+-n := decimal.NewFromInt(0)
+ var iv int64"
+modal/discount_calc/sample3,verified,1,zero_result,library semantics: fmt.Sscan reads a leading zero as octal,08 and 09 parsed as 0 (percentage field),"[case-04] stdout_diff
+-GEX6GY·····51.80·08%······4.14·····47.66
+-649SDA······0.06·09%······0.01······0.05
++GEX6GY·····51.80·00%······0.00·····51.80
++649SDA······0.06·00%······0.00······0.06
+-ITEMS:·008·NET·TOTAL:······1,811.24
++ITEMS:·008·NET·TOTAL:······1,815.39","--- first attempt
++++ final
+@@ -5,2 +5,3 @@
+ ""os""
++""strconv""
+ ""strings""
+@@ -25,3 +26,2 @@
+ var discReader *bufio.Reader
+-var eof bool
+ func formatEdited(val decimal.Decimal, picture string) string {
+@@ -142,6 +142,2 @@
+ func parsePriceField(s string) decimal.Decimal {
+-s = strings.TrimSpace(s)
+-if s == """" {
+-return decimal.Zero
+-}
+ clean := """"
+@@ -162,6 +158,2 @@
+ func parsePctField(s string) int64 {
+-s = strings.TrimSpace(s)
+-if s == """" {
+-return 0
+-}
+ clean := """"
+@@ -175,4 +167,6 @@
+ }
+-var v int64
+-fmt.Sscan(clean, &v)
++v, err := strconv.ParseInt(clean, 10, 64)
++if err != nil {
++return 0
++}
+ v = v % 100
+@@ -183,4 +177,5 @@
+ }
++var eofNext bool
+ func readPara() {
+-if eof {
++if eofNext {
+ WsEofFlag = ""Y""
+... 78 more diff lines"
+modal/discount_calc/sample4,verified,2,compile_error,compile: hallucinated or misused library API,Decimal.GreaterOrEqual does not exist (it is GreaterThanOrEqual); needed 2 repairs,"BUILD ERROR:
+# go_harness
+./main.go:52:9: abs.GreaterOrEqual undefined (type decimal.Decimal has no field or method GreaterOrEqual)","--- first attempt
++++ final
+@@ -5,2 +5,3 @@
+ ""os""
++""strconv""
+ ""strings""
+@@ -23,9 +24,2 @@
+ var discRec DiscRec
+-func pow10Int(n int) int64 {
+-var p int64 = 1
+-for i := 0; i < n; i++ {
+-p *= 10
+-}
+-return p
+-}
+ func pow10Dec(n int) decimal.Decimal {
+@@ -39,3 +33,3 @@
+ abs := scaled.Abs()
+-if abs.GreaterOrEqual(modulus) {
++if abs.Cmp(modulus) >= 0 {
+ abs = abs.Mod(modulus)
+@@ -103,7 +97,2 @@
+ var intPlaces []place
+-for i, ch := range intStr {
+-_ = i
+-_ = ch
+-break
+-}
+ var intPicChars []rune
+@@ -135,4 +124,2 @@
+ out := make([]rune, 0, len(picture))
+-intPlaceIdx := 0
+-fracPlaceIdx := 0
+ for _, c := range picture {
+@@ -195,4 +182,2 @@
+ }
+-_ = intPlaceIdx
+-_ = fracPlaceIdx
+ return string(out)
+@@ -234,7 +219,4 @@
+... 26 more diff lines"
+modal/interest_schedule/sample3,verified,1,compile_error,compile: unused variable,intPlaceholderCounter,"BUILD ERROR:
+# go_harness
+./main.go:208:2: declared and not used: intPlaceholderCounter","--- first attempt
++++ final
+@@ -139,25 +139,5 @@
+ out := []byte(pic)
+-intIdx := 0
+-fracIdx := 0
+ intDigits := []byte(intStr)
+-suppressed := true
+-placeholderPos := 0
+-for i := 0; i < picLen; i++ {
+-if pic[i] == '.' || pic[i] == ',' {
+-continue
+-}
+-if dotPos >= 0 && i > dotPos {
+-break
+-}
+-if pic[i] == 'Z' || pic[i] == '9' {
+-d := intDigits[placeholderPos]
+-placeholderPos++
+-_ = d
+-}
+-}
+-intPlaceholderCounter := 0
+ blankFlags := make([]bool, intPlaceCount)
+ sup := true
+-for idx := 0; idx < intPlaceCount; idx++ {
+-d := intDigits[idx]
+ picIntChars := []byte{}
+@@ -171,2 +151,4 @@
+ }
++for idx := 0; idx < intPlaceCount; idx++ {
++d := intDigits[idx]
+ pc := picIntChars[idx]
+@@ -183,3 +165,2 @@
+ }
+-_ = sup
+ }
+@@ -229,8 +210,3 @@
+ }
+-_ = intIdx
+... 6 more diff lines"
+modal/interest_schedule/sample4,verified,1,compile_error,compile: unused variable,modCents,"BUILD ERROR:
+# go_harness
+./main.go:69:2: declared and not used: modCents","--- first attempt
++++ final
+@@ -50,3 +50,2 @@
+ cents := val.Mul(decimal.New(100, 0)).Truncate(0)
+-modCents := decimal.New(pow10(10), 0)
+ c := cents.IntPart()
+@@ -73,3 +72,2 @@
+ case 'Z', '9':
+-_ = i
+ case ',', '.':"
+modal/order_check/sample0,verified,1,compile_error,compile: unused variable,priceDigits,"BUILD ERROR:
+# go_harness
+./main.go:125:2: declared and not used: priceDigits","--- first attempt
++++ final
+@@ -82,3 +82,2 @@
+ orQtyStr := line[6:9]
+-orPriceStr := line[9:15]
+ var qty int64
+@@ -101,5 +100,3 @@
+ }
+-priceDigits := strings.TrimSpace(orPriceStr)
+ rawPrice := line[9:15]
+-var priceInt int64
+ cleanPrice := """"
+@@ -112,2 +109,3 @@
+ }
++var priceInt int64
+ if cleanPrice == """" {
+@@ -191,4 +189,6 @@
+ pow10scale := decimal.New(1, int32(scale))
++_ = pow10scale
+ scaled := v.Mul(pow10scale)
+ scaled = scaled.Truncate(0)
++_ = scaled
+ intPart := v.Truncate(0)
+@@ -196,3 +196,2 @@
+ modInt := decimal.New(1, int32(intDigits))
+-if intDigits <= 18 {
+ if !intPart.IsZero() {
+@@ -202,4 +201,2 @@
+ v = intPart.Add(fracPart)
+-return v
+-}
+ return v
+@@ -313,10 +310,2 @@
+ seenSignificant = true
+-} else {
+-if len(intPic) > 0 {
+-}
+-}
+-if d == '0' && !seenSignificant {
+-}
+... 8 more diff lines"
+modal/order_check/sample1,verified,1,compile_error,compile: unused variable,mod,"BUILD ERROR:
+# go_harness
+./main.go:322:3: declared and not used: mod","--- first attempt
++++ final
+@@ -235,4 +235,3 @@
+ qtyDec := decimal.NewFromInt(orderRec.OrQty)
+-prod := qtyDec.Mul(orderRec.OrPrice).Mul(decimal.NewFromFloat(1.05))
+-prod = qtyDec.Mul(orderRec.OrPrice).Mul(decimal.RequireFromString(""1.05""))
++prod := qtyDec.Mul(orderRec.OrPrice).Mul(decimal.RequireFromString(""1.05""))
+ WsTotal = prod.Round(2)
+@@ -258,3 +257,2 @@
+ if iv < 0 {
+-mod := iv % p10
+ abs := -iv"
+modal/order_check/sample2,verified,1,compile_error,compile: unused variable,pow,"BUILD ERROR:
+# go_harness
+./main.go:301:2: declared and not used: pow","--- first attempt
++++ final
+@@ -76,3 +76,2 @@
+ intStr = intStr[len(intStr)-intCap:]
+-} else {
+ }
+@@ -230,3 +229,2 @@
+ scaled := abs.Shift(scale).Truncate(0)
+-pow := decimal.NewFromInt(1)
+ exp := intDigits + int(scale)"
+modal/order_check/sample4,verified,1,compile_error,compile: unused variable,decPic,"BUILD ERROR:
+# go_harness
+./main.go:221:2: declared and not used: decPic","--- first attempt
++++ final
+@@ -173,6 +173,4 @@
+ intPic := picture
+-decPic := """"
+ if idx := strings.Index(picture, "".""); idx >= 0 {
+ intPic = picture[:idx]
+-decPic = picture[idx+1:]
+ }"
+modal/overflow_demo/sample1,verified,1,compile_error,compile: integer or struct type mismatch,int + int32 in one expression,"BUILD ERROR:
+# go_harness
+./main.go:189:30: invalid operation: intDigits + scale (mismatched types int and int32)","--- first attempt
++++ final
+@@ -128,3 +128,3 @@
+ scaled := d.Shift(scale)
+-mod := decimal.New(1, int32(intDigits+scale))
++mod := decimal.New(1, int32(intDigits)+scale)
+ if d.Sign() < 0 {
+@@ -258,4 +258,2 @@
+ }
+-if signNeg {
+-}
+ return result"
+modal/overflow_demo/sample2,verified,2,compile_error,compile: unused variable,n; needed 2 repairs,"BUILD ERROR:
+# go_harness
+./main.go:311:2: declared and not used: n","--- first attempt
++++ final
+@@ -93,5 +93,2 @@
+ intStr := intPart.String()
+-if intStr == ""0"" {
+-} else {
+-}
+ if len(intStr) > intDigits {
+@@ -111,3 +108,2 @@
+ }
+-digitIdx := 0
+ firstNonZero := -1
+@@ -120,2 +116,3 @@
+ var outInt strings.Builder
++digitIdx := 0
+ for _, pc := range intPat {
+@@ -126,3 +123,2 @@
+ if digitIdx <= firstNonZero {
+-if digitIdx < firstNonZero || (firstNonZero == -1) {
+ outInt.WriteByte(' ')
+@@ -130,9 +126,2 @@
+ outInt.WriteByte(',')
+-}
+-} else {
+-if digitIdx < firstNonZero {
+-outInt.WriteByte(' ')
+-} else {
+-outInt.WriteByte(',')
+-}
+ }
+@@ -224,3 +213,2 @@
+ }
+-n, _ := decimal.NewFromString(digitsStr)
+ var intVal int64"
+modal/overflow_demo/sample3,verified,1,missing_or_extra_lines,I/O: input reading dropped records,output stopped after 4 of 8 records,"[case-02] stdout_diff
+-ACC0·55,555.55·30,555.55·75,000.00·27,777.7
+-ACC0·99,999.98·30,555.53·75,000.00·49,999.9
+-ACC0·99,999.99·30,555.52·75,000.00·49,999.9
+-ZZZZ·99,999.99·30,555.51·75,000.00·49,999.9
+-RECORDS:·08
++RECORDS:·04","--- first attempt
++++ final
+@@ -2,3 +2,2 @@
+ import (
+-""bufio""
+ ""fmt""
+@@ -25,5 +24,5 @@
+ var ArAmt decimal.Decimal
+-var amtFile *os.File
+-var amtReader *bufio.Reader
+ var inputDone bool
++var lines []string
++var lineIdx int
+ func pow10(n int) decimal.Decimal {
+@@ -42,3 +41,2 @@
+ scaled := tr.Shift(int32(scale))
+-mod := pow10(intDigits + scale)
+ sign := 1
+@@ -48,2 +46,3 @@
+ }
++mod := pow10(intDigits + scale)
+ q := scaled.Div(mod).Truncate(0)
+@@ -57,4 +56,5 @@
+ sum := target.Add(addend)
+-if fitsInPic(sum.Truncate(int32(scale)), intDigits, scale) {
+-return truncateToScale(sum, int32(scale))
++trSum := truncateToScale(sum, int32(scale))
++if fitsInPic(trSum, intDigits, scale) {
++return trSum
+ }
+@@ -93,4 +93,3 @@
+ intVal := intRem.IntPart()
+-intDigitsStr := fmt.Sprintf(""%0*d"", intSlots, intVal)
+-intPartStr = intDigitsStr
++intPartStr = fmt.Sprintf(""%0*d"", intSlots, intVal)
+ } else {
+@@ -114,19 +113,2 @@
+ } else {
+-if d != '0' {
+-suppressing = false
+... 101 more diff lines"
+modal/payroll_report/sample1,verified,1,value_mismatch,library semantics: decimal.New exponent sign,"decimal.New(15, 1) is 150, not 1.5: overtime pay 100x too large","[case-02] stdout_diff
+-ACC01·ACC·100.0···1.00·······130.00
+-ACC01·ACC·150.0···1.00·······205.00
+-ACC01·ACC·500.0···1.00·······730.00
+-··DEPT·ACC·EMPLOYEES:·006·TOTAL:·······1,065.60
+-GRAND·TOTAL·(00008):··········1,085.60
++ACC01·ACC·100.0···1.00·····9,040.00
++ACC01·ACC·150.0···1.00····16,540.00
++ACC01·ACC·500.0···1.00····69,040.00
++··DEPT·ACC·EMPLOYEES:·006·TOTAL:······94,620.60
++GRAND·TOTAL·(00008):·········94,640.60
+
+[case-03] stdout_diff
+-ACC01·ACC·555.5···1.00·······813.25
+-ACC01·ACC·999.8···1.00·····1,479.70
+-ACC01·ACC·999.9···1.00·····1,479.85
++ACC01·ACC·555.5···1.00····77,365.00
++ACC01·ACC·999.8···1.00···144,010.00
++ACC01·ACC·999.9···1.00···144,025.00
+-··DEPT·ACC·EMPLOYEES:·008·TOTAL:·······6,273.40
+-GRAND·TOTAL·(00008):··········6,273.40
++··DEPT·ACC·EMPLOYEES:·008·TOTAL:·····367,900.60
++GRAND·TOTAL·(00008):········367,900.60","--- first attempt
++++ final
+@@ -103,3 +103,2 @@
+ pow := int64(1)
+-overflow := false
+ for i := 0; i < intPlaceCount; i++ {
+@@ -111,3 +110,2 @@
+ }
+-_ = overflow
+ }
+@@ -271,3 +269,3 @@
+ }
+-onePointFive := decimal.New(15, 1)
++onePointFive := decimal.New(15, -1)
+ calc := WsRegHours.Mul(empRec.ErRate).Add(WsOtHours.Mul(empRec.ErRate).Mul(onePointFive))"
+modal/simple_interest/sample0,verified,1,zero_result,library semantics: fmt.Sscan reads a leading zero as octal,08 and 09 parsed as 0 (years field),"[case-05] stdout_diff
+-02CS87····50,887.43·····238,804.53
++02CS87····50,887.43···········0.00
+-1A7XRW·········0.24···········0.01
+-4FFW87·········0.38···········0.22
++1A7XRW·········0.24···········0.00
++4FFW87·········0.38···········0.00
+-TOTAL·INTEREST:····990,144,283.79
++TOTAL·INTEREST:····989,905,479.03
+
+[case-06] stdout_diff
+-MCS6EF·········8.97···········0.03
++MCS6EF·········8.97···········0.00
+-TOTAL·INTEREST:········376,616.85
++TOTAL·INTEREST:········376,616.82","--- first attempt
++++ final
+@@ -5,2 +5,3 @@
+ ""os""
++""strconv""
+ ""strings""
+@@ -98,4 +99,14 @@
+ }
+-var n int64
+-fmt.Sscan(t, &n)
++neg := false
++if t[0] == '-' {
++neg = true
++t = t[1:]
++}
++n, err := strconv.ParseInt(t, 10, 64)
++if err != nil {
++return 0
++}
++if neg {
++n = -n
++}
+ return n
+@@ -176,3 +187,2 @@
+ seenNonZero = true
+-} else {
+ }"
+modal/simple_interest/sample3,verified,2,zero_result,library semantics: fmt.Sscan reads a leading zero as octal,same bug; needed 2 repairs,"[case-05] stdout_diff
+-02CS87····50,887.43·····238,804.53
++02CS87····50,887.43···········0.00
+-1A7XRW·········0.24···········0.01
+-4FFW87·········0.38···········0.22
++1A7XRW·········0.24···········0.00
++4FFW87·········0.38···········0.00
+-TOTAL·INTEREST:····990,144,283.79
++TOTAL·INTEREST:····989,905,479.03
+
+[case-06] stdout_diff
+-MCS6EF·········8.97···········0.03
++MCS6EF·········8.97···········0.00
+-TOTAL·INTEREST:········376,616.85
++TOTAL·INTEREST:········376,616.82","--- first attempt
++++ final
+@@ -2,3 +2,2 @@
+ import (
+-""bufio""
+ ""fmt""
+@@ -24,6 +23,3 @@
+ var loanIndex int
+-var loanFile *os.File
+-func isInputDone() bool {
+-return WsEofFlag == ""Y""
+-}
++func isInputDone() bool { return WsEofFlag == ""Y"" }
+ func parseImplied(s string, scale int32) decimal.Decimal {
+@@ -44,2 +40,5 @@
+ }
++if t == """" {
++return decimal.NewFromInt(0)
++}
+ d := decimal.RequireFromString(t)
+@@ -58,8 +57,8 @@
+ }
+-t = strings.ReplaceAll(t, "" "", """")
+-if t == """" {
+-return 0
+-}
+ var v int64
+-fmt.Sscan(t, &v)
++for _, ch := range t {
++if ch >= '0' && ch <= '9' {
++v = v*10 + int64(ch-'0')
++}
++}
+ return v
+@@ -70,5 +69,13 @@
+ func storeDecimal(val decimal.Decimal, scale int32, intDigits int, doRound bool) decimal.Decimal {
+-var q decimal.Decimal
++q := val
+ if doRound {
+-q = val.Round(scale)
+... 88 more diff lines"
+modal/simple_interest/sample4,verified,1,compile_error,compile: hallucinated or misused library API,Decimal.GreaterOrEqual does not exist,"BUILD ERROR:
+# go_harness
+./main.go:63:13: scaled.GreaterOrEqual undefined (type decimal.Decimal has no field or method GreaterOrEqual)
+./main.go:161:33: intPart.GreaterOrEqual undefined (type decimal.Decimal has no field or method GreaterOrEqual)","--- first attempt
++++ final
+@@ -45,3 +45,3 @@
+ if totalDigits > 0 {
+-if scaled.GreaterOrEqual(powTotal) {
++if scaled.GreaterThanOrEqual(powTotal) {
+ scaled = scaled.Mod(powTotal)
+@@ -96,8 +96,2 @@
+ return v
+-}
+-func padRight(s string, n int) string {
+-if len(s) >= n {
+-return s[:n]
+-}
+-return s + strings.Repeat("" "", n-len(s))
+ }
+@@ -129,3 +123,3 @@
+ powInt := decimal.New(1, int32(intDigitsPic))
+-if intDigitsPic > 0 && intPart.GreaterOrEqual(powInt) {
++if intDigitsPic > 0 && intPart.GreaterThanOrEqual(powInt) {
+ intPart = intPart.Mod(powInt)"
+modal/tax_calc/sample0,verified,1,compile_error,compile: hallucinated or misused library API,"decimal.NewFromString returns (value, error); used as one value","BUILD ERROR:
+# go_harness
+./main.go:212:12: assignment mismatch: 1 variable but decimal.NewFromString returns 2 values
+./main.go:213:12: assignment mismatch: 1 variable but decimal.NewFromString returns 2 values
+./main.go:214:12: assignment mismatch: 1 variable but decimal.NewFromString returns 2 values","--- first attempt
++++ final
+@@ -177,5 +177,5 @@
+ limit40000 := decimal.NewFromInt(40000)
+-rate10 := decimal.NewFromString(""0.10"")
+-rate20 := decimal.NewFromString(""0.20"")
+-rate30 := decimal.NewFromString(""0.30"")
++rate10 := decimal.RequireFromString(""0.10"")
++rate20 := decimal.RequireFromString(""0.20"")
++rate30 := decimal.RequireFromString(""0.30"")
+ c1000 := decimal.NewFromInt(1000)"
+modal/tax_calc/sample1,verified,1,number_format,COBOL formatting: numeric-edited or zoned output,PIC 9(3) count printed as 8 instead of 008,"[case-01] stdout_diff
+-TAXPAYERS:·008·TOTAL·TAX:·········50.01
++TAXPAYERS:·8·TOTAL·TAX:·········50.01
+
+[case-02] stdout_diff
+-TAXPAYERS:·008·TOTAL·TAX:····387,666.67
++TAXPAYERS:·8·TOTAL·TAX:····387,666.67","--- first attempt
++++ final
+@@ -162,4 +162,2 @@
+ clean := strings.TrimSpace(trIncomeRaw)
+-var n int64
+-fmt.Sscanf(clean, ""%d"", &n)
+ d, err := decimal.NewFromString(clean)
+@@ -176,2 +174,11 @@
+ }
++}
++func formatCountPIC9(count int64, digits int) string {
++s := fmt.Sprintf(""%d"", count)
++if len(s) > digits {
++s = s[len(s)-digits:]
++} else if len(s) < digits {
++s = strings.Repeat(""0"", digits-len(s)) + s
++}
++return s
+ }
+@@ -229,3 +236,4 @@
+ moveToEditedTotal(WsTotalTax)
+-fmt.Printf(""TAXPAYERS: %d TOTAL TAX: %s\n"", WsCount, WsTotalEd)
+-}
++wsCountStr := formatCountPIC9(WsCount, 3)
++fmt.Printf(""TAXPAYERS: %s TOTAL TAX: %s\n"", wsCountStr, WsTotalEd)
++}"
+modal/tax_calc/sample3,verified,1,compile_error,compile: hallucinated or misused library API,decimal.NewFromString returns two values,"BUILD ERROR:
+# go_harness
+./main.go:226:12: assignment mismatch: 1 variable but decimal.NewFromString returns 2 values
+./main.go:227:12: assignment mismatch: 1 variable but decimal.NewFromString returns 2 values
+./main.go:228:12: assignment mismatch: 1 variable but decimal.NewFromString returns 2 values","--- first attempt
++++ final
+@@ -186,5 +186,5 @@
+ lim2 := decimal.NewFromInt(40000)
+-rate10 := decimal.NewFromString(""0.10"")
+-rate20 := decimal.NewFromString(""0.20"")
+-rate30 := decimal.NewFromString(""0.30"")
++rate10 := decimal.New(10, -2)
++rate20 := decimal.New(20, -2)
++rate30 := decimal.New(30, -2)
+ const1000 := decimal.NewFromInt(1000)"
+modal/temp_convert/sample0,verified,2,compile_error,compile: unused variable,seenNonZero; needed 2 repairs,"BUILD ERROR:
+# go_harness
+./main.go:92:2: declared and not used: seenNonZero","--- first attempt
++++ final
+@@ -24,9 +24,2 @@
+ p = p.Mul(ten)
+-}
+-return p
+-}
+-func pow10Int64(n int) int64 {
+-var p int64 = 1
+-for i := 0; i < n; i++ {
+-p *= 10
+ }
+@@ -63,9 +56,3 @@
+ intStr := fmt.Sprintf(""%0*d"", integerDigits, intVal)
+-seenNonZero := false
+ chars := []byte(intStr)
+-for i := 0; i < integerDigits; i++ {
+-if chars[i] != '0' {
+-seenNonZero = true
+-}
+-}
+ seen := false
+@@ -155,6 +142,3 @@
+ } else {
+-var iv int64
+-_, err := fmt.Sscan(fStrTrim, &iv)
+-if err != nil {
+-iv = 0
++var iv int64 = 0
+ for _, ch := range fStrTrim {
+@@ -162,3 +146,2 @@
+ iv = iv*10 + int64(ch-'0')
+-}
+ }"
+modal/temp_convert/sample3,verified,1,value_mismatch,library semantics: fmt.Sscan reads a leading zero as octal,"4-digit field 0100 read as octal 64, so 10.0F became 6.4F","[case-01] stdout_diff
+-AAAA··10.0F·-·12.22C
+-ZZZZ··10.0F·-·12.22C
+-AB12··10.0F·-·12.22C
+-X·····10.0F·-·12.22C
+-A1A1··10.0F·-·12.22C
++AAAA···6.4F·-·14.22C
++ZZZZ···6.4F·-·14.22C
++AB12···6.4F·-·14.22C
++X······6.4F·-·14.22C
++A1A1···6.4F·-·14.22C
+
+[case-02] stdout_diff
+-ACC0··31.9F·-··0.06C
+-ACC0··32.0F····0.00C
+-ACC0··32.1F····0.06C
++ACC0···2.5F·-·16.39C
++ACC0··20.8F·-··6.22C
++ACC0··20.9F·-··6.17C
+-READINGS:·08·BELOW·ZERO:·01
++READINGS:·08·BELOW·ZERO:·03","--- first attempt
++++ final
+@@ -5,2 +5,3 @@
+ ""os""
++""strconv""
+ ""strings""
+@@ -36,23 +37,2 @@
+ powDec := pow10i(decDigits)
+-scaledDec := absVal.Mul(decimal.NewFromInt(powDec))
+-scaledDec = scaledDec.Truncate(0)
+-scaledInt := scaledDec.IntPart()
+-powDecInt64 := powDec
+-intPart := scaledInt / powDecInt64
+-fracPart := scaledInt % powDecInt64
+-modInt := pow10i(intDigits)
+-intPart = intPart % modInt
+-newScaled := intPart*powDecInt64 + fracPart
+-d := decimal.New(newScaled, int32(-decDigits))
+-if signNegative {
+-d = d.Neg()
+-}
+-return d
+-}
+-func formatZZ9_9(val decimal.Decimal) string {
+-intDigits := 3
+-decDigits := 1
+-v := val.Truncate(int32(decDigits))
+-absVal := v.Abs()
+-powDec := pow10i(decDigits)
+ scaledDec := absVal.Mul(decimal.NewFromInt(powDec)).Truncate(0)
+@@ -63,51 +43,13 @@
+ intPart = intPart % modInt
+-intStr := fmt.Sprintf(""%0*d"", intDigits, intPart)
+-chars := []byte(intStr)
+-for i := 0; i < intDigits-1; i++ {
+-if chars[i] == '0' {
+-allLeadingZero := true
+-for k := 0; k < i; k++ {
+-if chars[k] != ' ' && chars[k] != '0' {
+-allLeadingZero = false
+... 102 more diff lines"

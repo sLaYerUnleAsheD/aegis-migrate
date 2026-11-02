@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 from cobol_adapter.analyzer import analyze, record_layout
-from cobol_adapter.inputgen import generate_cases
+from cobol_adapter.inputgen import cases_for_program
 from cobol_adapter.oracle import run_oracle
 from core import translate
 from core.llm import BudgetExceeded, LLMClient, LLMError, load_env
@@ -38,14 +38,17 @@ def migrate(cbl: Path, client, *, max_repairs: int = 3, effort="default", seed: 
     cbl = Path(cbl)
     src = cbl.read_text()
     res: dict = {"program": cbl.stem, "provider": client.provider, "model": client.model,
-                 "effort": str(effort), "sample": sample, "status": None, "single_shot_ok": False,
+                 "effort": (client.effective_effort(effort) if hasattr(client, "effective_effort") else str(effort)),
+                 "sample": sample, "status": None, "single_shot_ok": False,
                  "repairs_used": 0, "attempts": [], "total_cost_usd": 0.0}
 
     def finish(status: str, **extra) -> dict:
         res["status"] = status
         res.update(extra)
-        res["total_cost_usd"] = round(sum(a["cost_usd"] for a in res["attempts"])
-                                      + res.get("failed_call_cost_usd", 0.0), 6)
+        failed = res.get("failed_call_cost_usd", 0.0)
+        res["total_cost_usd"] = round(sum(a["cost_usd"] for a in res["attempts"]) + failed, 6)
+        # list price: stays meaningful when calls were served from the cache
+        res["total_list_cost_usd"] = round(sum(a["list_cost_usd"] for a in res["attempts"]) + failed, 6)
         if out_dir:
             out_dir.mkdir(parents=True, exist_ok=True)
             (out_dir / "result.json").write_text(json.dumps(res, indent=2))
@@ -70,7 +73,7 @@ def migrate(cbl: Path, client, *, max_repairs: int = 3, effort="default", seed: 
 
     # 1. Golden outputs from the real COBOL program.
     cases = []
-    for c in generate_cases(record_layout(a), seed=seed, n_random=n_random, per_file=per_file):
+    for c in cases_for_program(cbl, record_layout(a), seed, n_random, per_file):
         g = oracle(cbl, c.data)
         if not g.ok:
             return finish("oracle_failed", detail=g.compile_error or g.stderr.decode("utf-8", "replace")[:500])
@@ -87,7 +90,8 @@ def migrate(cbl: Path, client, *, max_repairs: int = 3, effort="default", seed: 
                       else translate.build_repair_prompt(src, a, go, failure))
             r = client.call(prompt, system=translate.RULES, effort=effort, tag=f"{cbl.stem}:{kind}",
                             salt=f"sample{sample}" if sample else "")
-            att = {"n": n, "kind": kind, "cost_usd": r.cost_usd, "cached": r.cached,
+            att = {"n": n, "kind": kind, "cost_usd": r.cost_usd,
+                   "list_cost_usd": r.list_cost_usd or r.cost_usd, "cached": r.cached,
                    "output_tokens": r.usage["output_tokens"], "built": False,
                    "passed_cases": 0, "failure": ""}
             res["attempts"].append(att)

@@ -228,3 +228,19 @@ def test_baseten_sends_a_large_output_cap_and_env_can_override(tmp_path):
     env = dict(ENV, BASETEN_API_KEY="k", BASETEN_MAX_OUTPUT_TOKENS="1234")
     LLMClient("baseten", state_dir=tmp_path, post=post, env=env, sleep=lambda s: None).call("b")
     assert post.calls[1][2]["max_tokens"] == 1234
+
+
+def test_cache_hit_reports_list_price_but_spends_nothing(tmp_path):
+    c = client(tmp_path, FakePost((200, responses_body(inp=32, out=1500))))
+    live = c.call("x")
+    hit = c.call("x")
+    assert hit.cached and hit.cost_usd == 0.0
+    assert hit.list_cost_usd == pytest.approx(live.cost_usd)
+    assert hit.list_cost_usd == pytest.approx(0.006415)
+
+
+def test_effective_effort_resolves_provider_defaults(tmp_path):
+    assert client(tmp_path, FakePost()).effective_effort() == "low"                    # meta default
+    assert client(tmp_path, FakePost(), provider="modal").effective_effort() == "none"
+    assert client(tmp_path, FakePost()).effective_effort("high") == "high"
+    assert client(tmp_path, FakePost()).effective_effort(None) == "none"
