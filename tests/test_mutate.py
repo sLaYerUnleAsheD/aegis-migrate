@@ -122,3 +122,11 @@ def test_original_failing_the_stress_set_is_reported_not_hidden():
     rep = run_mutation_test(REF, [("c", b"", None)], v, log=lambda *_: None,
                             stress_cases=[("a", b"", None), ("b", b"", None)])
     assert rep["survived"] > 0 and rep["stress"]["baseline_ok"] is False
+
+
+def test_survivors_carry_their_source_line():
+    rep = run_mutation_test(REF, [("c", b"", None)], lambda g, c: VerifyResult(
+        built=True, cases=[CaseResult("c", True, "match", "")]), log=lambda *_: None)
+    assert rep["survivors"] and all(sv["source_line"] for sv in rep["survivors"])
+    first = rep["survivors"][0]
+    assert first["original"] in REF.splitlines()[first["line"] - 1]

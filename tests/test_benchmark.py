@@ -77,3 +77,11 @@ def test_discover_finds_tiers():
     assert {"simple_interest.cbl", "payroll_report.cbl", "overflow_demo.cbl"} <= names
     assert {p.name for p in discover(tier="tier2")} >= {"payroll_report.cbl", "commission_tiers.cbl"}
     assert all(p.parent.name == "tier2" for p in discover(tier="tier2"))
+
+
+def test_sample_offset_gives_fresh_folders_and_keeps_old_results(tmp_path):
+    run(tmp_path, providers=["meta"], samples=1, programs=[PROGS[0]])
+    res, _, _ = run(tmp_path, providers=["meta"], samples=2, programs=[PROGS[0]], sample_offset=10)
+    assert len(res) == 2
+    base = tmp_path / "run" / "meta" / PROGS[0].stem
+    assert {p.name for p in base.iterdir()} == {"sample0", "sample10", "sample11"}
