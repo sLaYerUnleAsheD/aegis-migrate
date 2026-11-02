@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 from cobol_adapter.analyzer import analyze, record_layout
-from cobol_adapter.inputgen import generate_cases, load_hints
+from cobol_adapter.inputgen import cases_for_program
 from cobol_adapter.oracle import run_oracle
 from core import translate
 from core.llm import BudgetExceeded, LLMClient, LLMError, load_env
@@ -73,8 +73,7 @@ def migrate(cbl: Path, client, *, max_repairs: int = 3, effort="default", seed: 
 
     # 1. Golden outputs from the real COBOL program.
     cases = []
-    for c in generate_cases(record_layout(a), seed=seed, n_random=n_random, per_file=per_file,
-                           hints=load_hints(cbl)):
+    for c in cases_for_program(cbl, record_layout(a), seed, n_random, per_file):
         g = oracle(cbl, c.data)
         if not g.ok:
             return finish("oracle_failed", detail=g.compile_error or g.stderr.decode("utf-8", "replace")[:500])

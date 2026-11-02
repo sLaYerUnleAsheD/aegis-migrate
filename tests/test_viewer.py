@@ -41,3 +41,15 @@ def test_page_embeds_valid_json_that_cannot_close_the_script_tag(tmp_path):
 def test_empty_run_dir_still_builds(tmp_path):
     out = build(tmp_path / "none", tmp_path / "v.html", tmp_path)
     assert "No results found" in out.read_text()
+
+
+def test_labels_mutation_and_pooled_results_are_embedded(tmp_path):
+    run, progs = make_run(tmp_path)
+    (run / "mutation").mkdir()
+    (run / "mutation" / "p.json").write_text(json.dumps({"mutants": 10, "caught": 8, "survived": 2, "catch_rate": 0.8,
+                                                         "stress": {"catch_rate_with_more_inputs": 0.9}}))
+    lab = tmp_path / "labels.csv"
+    lab.write_text("run,label,notes\nmeta/p/sample0,compile: unused variable,x\n")
+    d = collect(run, progs, lab)
+    assert d["labels"]["meta/p/sample0"]["label"] == "compile: unused variable"
+    assert d["mutation"][0]["with_more_inputs"] == 0.9 and d["overall"][0]["provider"] == "meta"

@@ -48,6 +48,8 @@ def test_hint_files_name_real_fields_and_valid_values():
             continue
         fields = {f["name"]: f for f in record_layout(analyze(p.read_text()))}
         for name, values in hints.items():
+            if name.startswith("__"):
+                continue
             assert name in fields, f"{p.name}: hint for unknown field {name}"
             f = fields[name]
             for v in values:
@@ -80,3 +82,14 @@ def test_tier_boundaries_are_hit_by_the_commission_hints():
     recs = {r[4:12] for _, r in generate_records(lay, seed=0, n_random=0, hints=load_hints(p))}
     # 1000.00, 1000.01, 5000.00, 5000.01, 20000.00, 20000.01: both sides of every tier limit
     assert {b"00100000", b"00100001", b"00500000", b"00500001", b"02000000", b"02000001"} <= recs
+
+
+def test_sample_records_are_added_only_when_the_hints_ask_for_it():
+    from cobol_adapter.inputgen import cases_for_program
+    d = Path("benchmark/programs/tier3/date_validate.cbl")
+    lay = record_layout(analyze(d.read_text()))
+    data = b"".join(c.data for c in cases_for_program(d, lay))
+    for line in d.with_name("date_validate.sample.dat").read_text().split("\n")[:-1]:
+        assert line.encode() in data                       # every hand-written date is tested
+    s = Path("benchmark/programs/tier1/simple_interest.cbl")
+    assert b"".join(c.data for c in cases_for_program(s, record_layout(analyze(s.read_text())))) != b""

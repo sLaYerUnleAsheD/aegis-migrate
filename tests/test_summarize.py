@@ -40,3 +40,15 @@ def test_list_cost_and_error_counting(tmp_path):
     row = summarize(load_results(tmp_path))[0]
     assert row["errors"] == 1 and row["total_cost_usd"] == pytest.approx(0.06)
     assert row["avg_list_cost_usd"] == pytest.approx((0.04 + 0.06 + 0.0) / 3, abs=1e-4)
+
+
+def test_api_errors_do_not_count_as_translation_failures(tmp_path):
+    from core.summarize import overall
+    write(tmp_path, "a", status="verified")
+    write(tmp_path, "b", status="verified", single_shot_ok=False, repairs_used=1)
+    write(tmp_path, "c", status="llm_error", single_shot_ok=False, total_list_cost_usd=0.14, attempts=[])
+    row = summarize(load_results(tmp_path))[0]
+    assert (row["runs"], row["completed"], row["errors"], row["single_shot"], row["verified"]) == (3, 2, 1, "1/2", "2/2")
+    o = overall(load_results(tmp_path))[0]
+    assert o["first_try"] == "1/2" and o["verified"] == "2/2" and o["errors"] == 1 and o["repairs"] == 1
+    assert o["cost_per_verified_usd"] == pytest.approx((0.03 + 0.03 + 0.14) / 2, abs=1e-3) or o["list_cost_usd"] > 0

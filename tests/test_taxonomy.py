@@ -43,3 +43,38 @@ def test_collect_and_csv(tmp_path):
     write_csv(rows, tmp_path / "f.csv")
     got = list(csv.DictReader((tmp_path / "f.csv").open()))
     assert got[0]["run"] == "modal/p/sample0" and got[0]["label"] == ""
+
+
+def test_repair_diff_ignores_comments_and_spacing(tmp_path):
+    from core.taxonomy import repair_diff
+    d = tmp_path / "r"
+    d.mkdir()
+    (d / "attempt_0.go").write_text("// header\nvar  x   int // note\n\n// why\nn := fmt.Sscan(t)\n")
+    (d / "main.go").write_text("var x int\nn := strconv.ParseInt(t)\n")
+    diff = repair_diff(d)
+    assert "-n := fmt.Sscan(t)" in diff and "+n := strconv.ParseInt(t)" in diff
+    assert "header" not in diff and "note" not in diff and "var" not in diff.replace("var x int", "")
+    (d / "main.go").write_text("var x int\nn := fmt.Sscan(t)\n")
+    assert repair_diff(d).startswith("(no code change")
+
+
+def test_formatting_failures_are_not_mistaken_for_rounding():
+    assert auto_tag("[c] stdout_diff\n-ACCOUNT\u00b7ACC0\u00b7BALANCE:\u00b7\u00b70.00\n+ACCOUNT\u00b7ACC0\u00b7BALANCE:\u00b7\u00b7000") == "number_format"
+    assert auto_tag("[c] stdout_diff\n-TAXPAYERS:\u00b7008\u00b7TOTAL:\u00b750.01\n+TAXPAYERS:\u00b78\u00b7TOTAL:\u00b750.01") == "number_format"
+
+
+def test_truncated_diff_views_are_compared_pairwise():
+    t = ("[c] stdout_diff\n-A\u00b7\u00b710.00\n-B\u00b7\u00b720.00\n-C\u00b7\u00b730.00\n+A\u00b7010.00\n+B\u00b7020.00\n... 4 more differing lines")
+    assert auto_tag(t) == "number_format"
+
+
+def test_hand_labels_are_merged(tmp_path):
+    from core.taxonomy import load_labels
+    d = tmp_path / "run" / "modal" / "p" / "sample0"
+    d.mkdir(parents=True)
+    (d / "result.json").write_text(json.dumps({"program": "p", "provider": "modal", "sample": 0, "status": "verified",
+        "repairs_used": 1, "single_shot_ok": False, "attempts": [{"failure": "BUILD ERROR:\nx"}]}))
+    lab = tmp_path / "l.csv"
+    lab.write_text("run,label,notes\nmodal/p/sample0,compile: unused variable,n\n")
+    row = collect_failures(tmp_path / "run", load_labels(lab))[0]
+    assert row["label"] == "compile: unused variable" and row["notes"] == "n"

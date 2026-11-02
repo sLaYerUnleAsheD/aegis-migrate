@@ -52,26 +52,53 @@ COBOL source
 
 All three go through one client (`core/llm.py`) with a disk cache, a per-provider spend cap and exact cost accounting.
 
-## Results so far (preliminary: 15 runs, 3 programs; the full benchmark replaces this table)
+## Results (12 programs, 5 samples per program per provider; every number from `python -m core.summarize`)
 
-| Provider | Runs | First attempt passed | Passed after repair | Repairs used | Output tokens / run | List cost / run |
+| Provider | Runs | First attempt passed | Passed after repair | Repairs used | Output tokens / run | List cost / verified program |
 |---|---|---|---|---|---|---|
-| Meta Spark 1.3 | 6 | 5 / 6 | 6 / 6 | 1 | ~7,100 – 7,900 | ~$0.03 – 0.04 |
-| Modal, Spark Open | 8 | 5 / 8 | 8 / 8 | 3 | ~8,800 – 10,100 | ~$0.04 – 0.05 |
-| Baseten, Spark Open | 1 | 1 / 1 | 1 / 1 | 0 | ~28,900 | ~$0.12 |
+| Meta Spark 1.3 (reasoning effort low) | 60 | 52/60 (87%) | 60/60 | 10 | ~6,672 | $0.031 |
+| Muse Spark Open on Modal (default effort) | 60 | 34/60 (57%) | 60/60 | 30 | ~9,162 | $0.044 |
+| Muse Spark Open on Baseten (partial, see below) | 24 | 12/13 completed | 13/13 completed | 1 | ~20,100 | ~$0.22 |
 
-Pooled: the first translation passed in 11 of 15 runs (73%); with verification and at most one repair, 15 of 15.
-Programs so far: interest calculation, discount calculation (tier 1) and payroll with a control break (tier 2).
+* **Verification closes the gap.** Both models end at 100% verified; the first attempt alone passes 87% (Meta) and
+  57% (Modal). No program needed more than two repairs.
+* **Meta's first attempts are better than Modal's** (Fisher exact p = 0.0005), but these are different models served at
+  different reasoning settings, and runs of the same program are correlated, so read the p-value as indicative.
+* **What predicts difficulty is numeric-edited output, not control flow.** The two programs with no numeric-edited
+  output (`label_builder`, `date_validate`, the latter a "tier 3" leap-year validator) passed first time in
+  20/20 runs on both providers. On the ten programs with edited output (`Z,ZZ9.99`-style pictures,
+  `ROUNDED`), first-attempt pass rates are 42/50 (84%) for Meta and 24/50 (48%) for Modal
+  (p = 0.0003). Tiers describe COBOL features; they do not track what LLMs find hard.
+* **Baseten is not comparable yet.** 11 of its 24 runs produced nothing: the reply hit the 32,000-token output cap (each
+  billed about $0.137, consistent with the cap), including all six runs of `bank_ledger`, `order_check` and `overflow_demo`.
+  Its 13 completed runs used about twice Modal's tokens for the same weights, and because the hardest programs are the ones
+  that failed to finish, its completed-run pass rate is flattered. Rerun with a lower reasoning effort before comparing.
 
-How to read this: the sample is small and the programs are easy, so the *lift* is real but modest and the provider
-differences are **not** statistically meaningful. What the data does support is the cost of correctness: roughly
-$0.03 – 0.05 per verified program at list price. Baseten's single run used about four times the tokens for the same
-task; reasoning effort was not controlled there, so it is not a like-for-like comparison.
+## What first attempts get wrong (35 first-attempt failures, labelled by hand)
+
+| Label | Count |
+|---|---|
+| compile: unused variable | 12 |
+| compile: hallucinated or misused library API | 7 |
+| library semantics: fmt.Sscan reads a leading zero as octal | 4 |
+| compile: integer or struct type mismatch | 3 |
+| COBOL formatting: numeric-edited or zoned output | 3 |
+| runtime: index out of range in edited-picture formatter | 3 |
+| compile: syntax error | 1 |
+| I/O: input reading dropped records | 1 |
+| library semantics: decimal.New exponent sign | 1 |
+
+Go and its libraries account for 28 of 35: 23 did not compile (unused variables, methods that do not exist on
+`decimal.Decimal` or that return two values, integer type mismatches) and 5 compiled but misused a library (`fmt.Sscan`
+reading `08` as octal; `decimal.New(15, 1)` meaning 150, not 1.5). The COBOL-specific failures are all about **numeric-edited
+formatting** (plus one case of input reading stopping early): 3 printed the wrong text and 3 crashed inside the model's own edited-picture formatter. No
+failure was a wrong reading of COBOL arithmetic such as rounding or truncation. The full table is in
+[`docs/failure_labels.csv`](docs/failure_labels.csv).
 
 ## Findings
 
-**1. The first translation is usually right on easy programs and sometimes subtly wrong, and verification fixes it.**
-Every run that failed first time was repaired from the failing diff, never needing more than one repair.
+**1. The first translation is often right, sometimes subtly wrong, and verification fixes every case.** All 120
+Meta and Modal runs ended verified, from the failing diff or compiler message alone, with no more than two repairs.
 
 **2. A bug that boundary tests missed and random records caught.** One first attempt parsed the 2-digit `YEARS`
 field with `fmt.Sscan`. Go reads a leading `0` as an octal prefix, so `"08"` and `"09"` parse as 0 and the interest
@@ -90,6 +117,11 @@ the COBOL standard defines. This is why the oracle is a compiler, not a model.
 is a reserved word there. Every benchmark program has a frozen golden output, and the test suite re-checks it both on
 the development host (3.2.0) and inside the Docker image (3.1.2). A static check also flags code that runs past
 column 72, where fixed-format COBOL silently discards text.
+
+**5. First attempts fail on Go and on edited-picture formatting, not on COBOL arithmetic.** See the failure table
+above. The models reimplement COBOL's `Z,ZZ9.99` editing from scratch in every translation, and that reimplementation is
+where both the formatting errors and the crashes live; an obvious improvement is to hand them a tested formatter
+(not done yet). The sandbox build catches the compile errors in seconds.
 
 ## How strong is the verifier? (mutation testing)
 
@@ -121,9 +153,10 @@ python -m core.pipeline benchmark/programs/tier1/simple_interest.cbl --provider 
 
 # the benchmark: every program x provider x sample, resumable, with a cost cap
 python -m core.benchmark --provider meta --provider modal --samples 5 --max-cost 25
-python -m core.summarize        # comparison table
+python -m core.summarize        # per-program table; add --overall --markdown for the README table
 python -m core.taxonomy --show  # every first-attempt failure, with the repair diff
 python -m core.build_viewer     # viewer/index.html: a self-contained page for run/
+python -m http.server 8000 --directory viewer   # then open http://localhost:8000
 
 # how strong is the verifier? (no model cost)
 python -m core.mutate run/meta/simple_interest/sample0/main.go \

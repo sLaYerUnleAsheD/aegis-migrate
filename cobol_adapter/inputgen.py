@@ -112,8 +112,15 @@ def format_record(fields: list[dict], values: dict[str, object]) -> bytes:
 
 
 # ---------------------------------------------------------------- cases ----
+def load_sample_records(cbl: Path | str) -> list[bytes]:
+    """Records of <program>.sample.dat (hand-picked, meaningful cases)."""
+    path = Path(cbl)
+    sp = path.with_name(path.stem + ".sample.dat")
+    return [ln.encode("ascii") for ln in sp.read_text().split("\n") if ln] if sp.exists() else []
+
+
 def generate_records(layout: list[dict], seed: int = 0, n_random: int = 20,
-                     hints: dict | None = None) -> list[tuple[str, bytes]]:
+                     hints: dict | None = None, extra: list[bytes] | None = None) -> list[tuple[str, bytes]]:
     """Return (label, record bytes). Order is deterministic for a given seed.
     Fields without hints behave exactly as before (same random stream)."""
     fields = expand_fields(layout)
@@ -167,17 +174,28 @@ def generate_records(layout: list[dict], seed: int = 0, n_random: int = 20,
                 vals[f["name"]] = "".join(rng.choice("ABCDEFGHJKLMNPQRSTUVWXYZ0123456789")
                                           for _ in range(f["size"]))
         recs.append((f"random-{k}", format_record(fields, vals)))
+    for i, rec in enumerate(extra or []):               # appended last: random stream unaffected
+        recs.append((f"sample-{i}", rec))
     return recs
 
 
 def generate_cases(layout: list[dict], seed: int = 0, n_random: int = 20, per_file: int = 8,
-                   hints: dict | None = None) -> list[Case]:
+                   hints: dict | None = None, extra: list[bytes] | None = None) -> list[Case]:
     """Chunk records into input files. Small files keep failing diffs readable
     and let the repair loop see which records break."""
-    recs = generate_records(layout, seed, n_random, hints)
+    recs = generate_records(layout, seed, n_random, hints, extra)
     cases = []
     for i in range(0, len(recs), per_file):
         chunk = recs[i: i + per_file]
         data = b"\n".join(r for _, r in chunk) + b"\n"
         cases.append(Case(f"case-{i // per_file + 1:02d}", data, len(chunk)))
     return cases
+
+
+def cases_for_program(cbl: Path | str, layout: list[dict], seed: int = 0, n_random: int = 10,
+                      per_file: int = 8) -> list[Case]:
+    """Generated cases + the program's hints; its sample.dat records are added too when the hints
+    file says {"__include_sample__": true} (for programs whose key cases a generator cannot combine)."""
+    hints = load_hints(cbl)
+    extra = load_sample_records(cbl) if hints.get("__include_sample__") else None
+    return generate_cases(layout, seed, n_random, per_file, hints, extra)

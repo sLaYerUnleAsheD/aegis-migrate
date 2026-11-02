@@ -199,7 +199,7 @@ def run_mutation_test(go_source: str, cases, verifier, *, max_mutants: int | Non
 
 def main(argv: list[str]) -> int:
     from cobol_adapter.analyzer import analyze, record_layout
-    from cobol_adapter.inputgen import generate_cases, load_hints
+    from cobol_adapter.inputgen import cases_for_program
     from cobol_adapter.oracle import run_oracle
     from core.sandbox import verify_in_docker
     from core.verify import verify
@@ -225,8 +225,7 @@ def main(argv: list[str]) -> int:
 
     a = analyze(args.program.read_text())
     cases = []
-    for c in generate_cases(record_layout(a), seed=args.input_seed, n_random=args.n_random, per_file=8,
-                            hints=load_hints(args.program)):
+    for c in cases_for_program(args.program, record_layout(a), args.input_seed, args.n_random, 8):
         g = run_oracle(args.program, c.data)
         if not g.ok:
             print(f"oracle failed on {c.name}: {g.compile_error or g.stderr!r}", file=sys.stderr)
@@ -235,8 +234,7 @@ def main(argv: list[str]) -> int:
     stress_cases = None
     if args.stress_n_random > 0:
         stress_cases = []
-        for c in generate_cases(record_layout(a), seed=args.input_seed, n_random=args.stress_n_random,
-                                per_file=8, hints=load_hints(args.program)):
+        for c in cases_for_program(args.program, record_layout(a), args.input_seed, args.stress_n_random, 8):
             g = run_oracle(args.program, c.data)
             if not g.ok:
                 print(f"oracle failed on stress case {c.name}", file=sys.stderr)
