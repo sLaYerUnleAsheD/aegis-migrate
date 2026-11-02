@@ -93,3 +93,27 @@ def test_sample_records_are_added_only_when_the_hints_ask_for_it():
         assert line.encode() in data                       # every hand-written date is tested
     s = Path("benchmark/programs/tier1/simple_interest.cbl")
     assert b"".join(c.data for c in cases_for_program(s, record_layout(analyze(s.read_text())))) != b""
+
+
+def test_tax_hints_expose_rounding_in_every_bracket():
+    """Mutation testing found a test gap: ROUNDED vs truncation only differed in one bracket.
+    Each bracket needs an income where rounding the tax changes the cents."""
+    from decimal import Decimal as D, ROUND_DOWN, ROUND_HALF_UP
+    p = Path("benchmark/programs/tier1/tax_calc.cbl")
+    recs = [r for _, r in generate_records(record_layout(analyze(p.read_text())), seed=0, n_random=0, hints=load_hints(p))]
+
+    def tax(inc, mode):
+        qz = lambda x: x.quantize(D("0.01"), rounding=mode)
+        if inc <= 10000:
+            return qz(inc * D("0.10")), 1
+        if inc <= 40000:
+            return qz(D(1000) + (inc - 10000) * D("0.20")), 2
+        return qz(D(7000) + (inc - 40000) * D("0.30")), 3
+
+    brackets = set()
+    for r in recs:
+        inc = D(int(r[5:13])) / 100
+        (a, br), (b, _) = tax(inc, ROUND_HALF_UP), tax(inc, ROUND_DOWN)
+        if a != b:
+            brackets.add(br)
+    assert brackets == {1, 2, 3}

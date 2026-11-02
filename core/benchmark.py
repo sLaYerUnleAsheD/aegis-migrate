@@ -50,13 +50,13 @@ class CachedOracle:
             return self._cache[key]
 
 
-def run_benchmark(programs: list[Path], providers: list[str], samples: int, *, client_factory,
+def run_benchmark(programs: list[Path], providers: list[str], samples: int, *, client_factory, sample_offset: int = 0,
                   verifier, effort="default", max_repairs: int = 3, out_root: Path = Path("run"),
                   workers: int = 1, max_cost: float | None = None, force: bool = False,
                   migrate_fn=migrate, oracle=run_oracle, log=print) -> list[dict]:
     clients = {p: client_factory(p) for p in providers}
     oracle = CachedOracle(oracle)
-    jobs = [(prov, prog, s) for prog in programs for prov in providers for s in range(samples)]
+    jobs = [(prov, prog, s) for prog in programs for prov in providers for s in range(sample_offset, sample_offset + samples)]
     spent, lock, results = [0.0], threading.Lock(), []
 
     def run_one(job):
@@ -97,6 +97,8 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Run the COBOL->Go benchmark.")
     ap.add_argument("--provider", action="append", default=[], help="repeatable: meta, modal, baseten")
     ap.add_argument("--samples", type=int, default=1, help="samples per program (sample0..N-1)")
+    ap.add_argument("--sample-offset", type=int, default=0,
+                    help="start numbering here (e.g. 10): new effort settings get fresh result folders")
     ap.add_argument("--tier", default=None, help="only programs in this folder, e.g. tier2")
     ap.add_argument("--program", action="append", default=[], type=Path, help="specific .cbl files")
     ap.add_argument("--effort", default="default")
@@ -119,7 +121,8 @@ def main(argv: list[str]) -> int:
         lambda go, cases: verify_in_docker(go, cases, image=args.image))
     programs = args.program or discover(tier=args.tier)
     effort = None if args.effort == "none" else args.effort
-    run_benchmark(programs, args.provider, args.samples, client_factory=lambda p: LLMClient(p),
+    run_benchmark(programs, args.provider, args.samples, sample_offset=args.sample_offset,
+                  client_factory=lambda p: LLMClient(p),
                   verifier=verifier, effort=effort, max_repairs=args.max_repairs,
                   workers=args.workers, max_cost=args.max_cost, force=args.force)
     print("\n" + format_table(summarize(load_results("run"))))

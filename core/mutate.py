@@ -165,6 +165,7 @@ def run_mutation_test(go_source: str, cases, verifier, *, max_mutants: int | Non
                          "mutation-test only translations that verified")
     mutants = generate(go_source, max_mutants, seed)
     by_op: dict[str, dict[str, int]] = {}
+    src_lines = go_source.splitlines()
     survivors, counts = [], {"caught": 0, "survived": 0, "build_error": 0}
     for mu in mutants:
         vr = verifier(mu.source, cases)
@@ -173,7 +174,8 @@ def run_mutation_test(go_source: str, cases, verifier, *, max_mutants: int | Non
         by_op.setdefault(mu.operator, {"caught": 0, "survived": 0, "build_error": 0})[status] += 1
         if status == "survived":
             survivors.append({"id": mu.id, "operator": mu.operator, "line": mu.line,
-                              "original": mu.original, "mutated": mu.mutated})
+                              "original": mu.original, "mutated": mu.mutated,
+                              "source_line": src_lines[mu.line - 1].strip() if mu.line <= len(src_lines) else ""})
         log(f"  mutant {mu.id:>3} {mu.operator:<24} line {mu.line:<4} {status}")
     denom = counts["caught"] + counts["survived"]
     stress = None
@@ -249,6 +251,7 @@ def main(argv: list[str]) -> int:
     for s in rep["survivors"]:
         extra = f"  [{s['with_more_inputs']}]" if "with_more_inputs" in s else ""
         print(f"  SURVIVED #{s['id']} {s['operator']} line {s['line']}: {s['original']!r} -> {s['mutated']!r}{extra}")
+        print(f"           | {s['source_line']}")
     if rep["stress"]:
         st = rep["stress"]
         if st["baseline_ok"]:
