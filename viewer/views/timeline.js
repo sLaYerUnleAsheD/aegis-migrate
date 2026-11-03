@@ -8,27 +8,58 @@ export function renderTimeline(root) {
   const steps = state.replay.steps || [];
   const i = state.replay.i;
 
-  const controls = el("div", { class: "replay-bar" },
-    el("button", {
-      class: "primary replay-btn", type: "button",
-      onClick: () => { restartReplay(); playReplay(); },
-    }, "▶ Replay from cache"),
-    el("button", {
-      type: "button",
-      onClick: () => (state.replay.playing ? (stopReplay(), emit()) : playReplay()),
-    }, state.replay.playing ? "Pause" : "Play"),
-    el("button", { type: "button", onClick: () => replayStep(1) }, "Step"),
-    el("button", { type: "button", "aria-pressed": state.replay.speed === 1 ? "true" : "false", onClick: () => setSpeed(1) }, "1×"),
-    el("button", { type: "button", "aria-pressed": state.replay.speed === 2 ? "true" : "false", onClick: () => setSpeed(2) }, "2×"),
-    el("button", { type: "button", onClick: () => restartReplay() }, "Restart"),
-  );
+  let controls = root.querySelector(".replay-bar");
+  let live = root.querySelector(".timeline");
+  let realWrap = root.querySelector(".real-wrap");
 
-  const caption = el("p", { class: "replay-caption", role: "note" },
-    el("span", { class: "badge-dot" }),
-    "Replayed from recorded data: no API call",
-  );
+  if (!controls) {
+    clear(root);
+    const hdr = el("div", { class: "pane-h" }, el("h2", {}, "Pipeline"));
+    controls = el("div", { class: "replay-bar" },
+      el("button", {
+        class: "primary replay-btn", type: "button",
+        onClick: () => { restartReplay(); playReplay(); },
+      }, "▶ Replay from cache"),
+      el("button", {
+        class: "btn-play-pause", type: "button",
+        onClick: () => {
+          if (state.replay.playing) {
+            stopReplay();
+            emit();
+          } else {
+            playReplay();
+          }
+        },
+      }, state.replay.playing ? "Pause" : "Play"),
+      el("button", { class: "btn-step", type: "button", onClick: () => replayStep(1) }, "Step"),
+      el("button", { class: "btn-1x", type: "button", onClick: () => setSpeed(1) }, "1×"),
+      el("button", { class: "btn-2x", type: "button", onClick: () => setSpeed(2) }, "2×"),
+      el("button", { class: "btn-restart", type: "button", onClick: () => restartReplay() }, "Restart"),
+    );
 
-  const live = el("ol", { class: "timeline", "aria-live": "polite" });
+    const caption = el("p", { class: "replay-caption", role: "note" },
+      el("span", { class: "badge-dot" }),
+      "Replayed from data: no API call",
+    );
+
+    live = el("ol", { class: "timeline", "aria-live": "polite" });
+    realWrap = el("div", { class: "real-wrap" });
+
+    root.append(hdr, controls, caption, live, realWrap);
+  }
+
+  // Update controls states without recreating buttons (prevents dropped clicks during playback)
+  const btnPlay = controls.querySelector(".btn-play-pause");
+  if (btnPlay) {
+    btnPlay.textContent = state.replay.playing ? "Pause" : "Play";
+    btnPlay.setAttribute("aria-label", state.replay.playing ? "Pause replay" : "Resume replay");
+  }
+  const btn1x = controls.querySelector(".btn-1x");
+  if (btn1x) btn1x.setAttribute("aria-pressed", state.replay.speed === 1 ? "true" : "false");
+  const btn2x = controls.querySelector(".btn-2x");
+  if (btn2x) btn2x.setAttribute("aria-pressed", state.replay.speed === 2 ? "true" : "false");
+
+  clear(live);
   if (!run) live.append(empty("Pipeline appears once a run is selected."));
   else {
     steps.forEach((s, idx) => {
@@ -57,16 +88,14 @@ export function renderTimeline(root) {
         : (run.status === "failed" ? `✗ Did not verify within budget (${rep} repairs attempted)` : `! ${run.status}`);
       live.append(el("div", { class: `verdict ${good ? "ok" : "bad"}` }, msg));
     }
+    const activeNode = live.querySelector(".step.on");
+    if (activeNode && state.replay.playing) {
+      activeNode.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+    }
   }
 
-  clear(root);
-  root.append(
-    el("div", { class: "pane-h" }, el("h2", {}, "Pipeline")),
-    controls,
-    caption,
-    live,
-    realPanel(run),
-  );
+  clear(realWrap);
+  realWrap.append(realPanel(run));
 }
 
 function verifyFacts(s, idx, currentIdx) {
@@ -95,8 +124,9 @@ function realPanel(run) {
     return det;
   }
   const tier = run.tier || "tier1";
+  const provider = run.provider || "meta";
   const replay = `docker run --rm --network none cobol-verify python -m core.replay demo/${run.id} --local`;
-  const live = `python -m core.pipeline benchmark/programs/${tier}/${run.program}.cbl --provider meta`;
+  const live = `python -m core.pipeline benchmark/programs/${tier}/${run.program}.cbl --provider ${provider}`;
   det.append(
     el("p", { class: "mut" }, "These run on your machine. The second needs API keys, GnuCOBOL and Docker. This page never calls a model."),
     copyBlock(replay),

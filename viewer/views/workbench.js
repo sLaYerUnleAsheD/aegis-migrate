@@ -19,7 +19,19 @@ export function renderWorkbench(root) {
   }
 
   const body = el("div", { class: "work", role: "tabpanel" });
-  if (!id) body.append(empty("Select a sample in the tree."));
+  if (!id) {
+    body.append(
+      el("div", { class: "wb-empty" },
+        el("h3", {}, "Select a run to inspect"),
+        el("p", { class: "mut" }, "Choose any translation run from the directory on the left to inspect its COBOL source, Go translation attempts, and byte-for-byte verification diffs."),
+        el("div", { class: "chips" },
+          el("span", { class: "tag ok" }, "✓ Verified first try"),
+          el("span", { class: "tag" }, "↻ Repaired in loop"),
+          el("span", { class: "tag fail" }, "✗ Diverged"),
+        ),
+      )
+    );
+  }
   else if (state.loading.run || state.loading.program) body.append(skeleton(6));
   else if (state.errors.run) body.append(empty(`Could not load this run: ${state.errors.run}`));
   else if (!run) body.append(empty("Missing run file."));
@@ -40,21 +52,47 @@ function cobolView(prog, run) {
   if (state.errors.program) return empty(`Could not load program JSON: ${state.errors.program}`);
   if (!prog) return empty("No COBOL source in viewer/data/programs.");
   const box = el("div", { class: "cobol-view" });
-  const pre = el("pre", { class: "code cobol-pre", tabindex: "0" }, prog.cobol || "(empty)");
+  const pre = el("pre", { class: "code cobol-pre", tabindex: "0" });
+
+  const rawCobol = prog.cobol || "(empty)";
+  const lines = rawCobol.split("\n");
+  const lineEls = [];
+  const paraMap = new Map();
+
+  lines.forEach((lineText, idx) => {
+    const lineEl = el("span", { class: "cobol-line", "data-line": idx + 1 }, lineText + "\n");
+    lineEls.push(lineEl);
+    pre.append(lineEl);
+  });
+
+  for (const p of prog.paragraphs || []) {
+    const normName = p.name.trim();
+    const esc = normName.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+    const regex = new RegExp(`^(\\d{6}\\s+)?\\s*${esc}(\\.|\\s|$)`, "i");
+    let foundIdx = lines.findIndex((l) => regex.test(l));
+    if (foundIdx === -1) {
+      foundIdx = lines.findIndex((l) => l.toUpperCase().includes(normName.toUpperCase()));
+    }
+    if (foundIdx !== -1) {
+      paraMap.set(normName, lineEls[foundIdx]);
+    }
+  }
 
   const chips = el("div", { class: "chips" });
   for (const p of prog.paragraphs || []) {
     const calls = (p.performs || []).join(" → ");
     const chipBtn = el("button", {
-      class: "tag", type: "button",
-      title: calls ? `PERFORM ${calls}` : "Click to find in code",
+      class: "tag chip-jump", type: "button",
+      title: calls ? `PERFORM ${calls}` : "Click to jump to paragraph",
       onClick: () => {
-        const text = pre.textContent;
-        const target = p.name;
-        const idx = text.indexOf(target);
-        if (idx !== -1) {
-          const linesBefore = text.slice(0, idx).split("\n").length;
-          pre.scrollTop = Math.max(0, (linesBefore - 3) * 19);
+        const targetEl = paraMap.get(p.name);
+        if (targetEl) {
+          targetEl.scrollIntoView?.({ behavior: "smooth", block: "center" });
+          pre.querySelectorAll(".para-flash").forEach((el) => el.classList.remove("para-flash"));
+          void targetEl.offsetWidth;
+          targetEl.classList.add("para-flash");
+        } else {
+          pre.scrollIntoView?.({ behavior: "smooth", block: "start" });
         }
       },
     }, p.name + (calls ? ` → ${calls}` : ""));

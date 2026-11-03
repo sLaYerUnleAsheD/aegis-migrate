@@ -1,17 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Aegis Migrate — recorded runs</title>
-  <meta name="description" content="Explore recorded COBOL to Go verification runs. Every replay is from cache: no API call.">
+  <meta name="description" content="Explore COBOL to Go verification runs. Every replay is from cache: no API call.">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
   <header class="top">
     <a class="brand" href="#/explorer" aria-label="Aegis Migrate home">
-      <span class="mark" aria-hidden="true">Æ</span>
       <span>Aegis Migrate</span>
     </a>
     <nav class="tabs" aria-label="Primary">
@@ -26,7 +25,17 @@
       <a class="repo" href="https://github.com/sLaYerUnleAsheD/aegis-migrate" rel="noopener">Repo</a>
     </div>
   </header>
-  <p class="banner-live" role="note">Replayed from recorded data: no API call</p>
+  <section class="banner-provenance" role="region" aria-label="Evidence & Provenance Statement">
+    <div class="provenance-content">
+      <span class="provenance-lead">Agents can write the Go. Nobody can trust it without evidence.</span>
+      <span class="provenance-sep" aria-hidden="true">/</span>
+      <span class="provenance-desc">Aegis Migrate runs the GnuCOBOL oracle, diffs every byte, and executes autonomous repair loops until equivalence is proven.</span>
+    </div>
+    <div class="provenance-badge" role="note">
+      <span class="pulse-dot" aria-hidden="true"></span>
+      <span>Replayed from data: no API call</span>
+    </div>
+  </section>
   <main id="main" class="main" tabindex="-1"></main>
   <script type="module" src="app.js"></script>
 </body>

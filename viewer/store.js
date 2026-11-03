@@ -33,7 +33,7 @@ function loadTheme() {
     const t = localStorage.getItem(THEME_KEY);
     if (t === "light" || t === "dark") return t;
   } catch {}
-  return matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  return "light";
 }
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -298,10 +298,15 @@ export function playReplay() {
   const { steps } = state.replay;
   if (!steps.length) return;
   stopReplay();
-  let startIdx = state.replay.i + 1;
-  if (startIdx >= steps.length) {
+  let startIdx = 0;
+  if (state.replay.done || state.replay.i >= steps.length - 1) {
     startIdx = 0;
     applyReplayIndex(-1, true);
+  } else if (state.replay.i < 0) {
+    startIdx = 0;
+  } else {
+    startIdx = state.replay.i + 1;
+    if (startIdx >= steps.length) startIdx = 0;
   }
   state.replay.playing = true;
   emit();
@@ -417,19 +422,10 @@ export async function boot() {
   state.route = parseHash();
   await loadIndex();
   state.route = parseHash();
-  if (state.route.page === "explorer") {
-    let id = state.route.runId;
-    if (!id) {
-      const prefer = (state.index.runs || []).find((r) => r.id.includes("modal__payroll_report__effort-default__s1"));
-      id = prefer?.id || filteredRuns()[0]?.id || "";
-      state.route.runId = id;
-      setHash(state.route);
-    }
-    if (id) {
-      const meta = (state.index.runs || []).find((r) => r.id === id);
-      openProgramPath(meta);
-      await ensureRun(id);
-    }
+  if (state.route.page === "explorer" && state.route.runId) {
+    const meta = (state.index.runs || []).find((r) => r.id === state.route.runId);
+    openProgramPath(meta);
+    await ensureRun(state.route.runId);
   }
   emit();
 }
