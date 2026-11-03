@@ -155,7 +155,7 @@ python -m core.pipeline benchmark/programs/tier1/simple_interest.cbl --provider 
 python -m core.benchmark --provider meta --provider modal --samples 5 --max-cost 25
 python -m core.summarize        # per-program table; add --overall --markdown for the README table
 python -m core.taxonomy --show  # every first-attempt failure, with the repair diff
-python -m core.build_viewer     # viewer/index.html: a self-contained page for run/
+python -m core.build_viewer --data-dir viewer/data   # JSON snapshot of run/ for the static app
 python -m http.server 8000 --directory viewer   # then open http://localhost:8000
 
 # how strong is the verifier? (no model cost)
@@ -177,7 +177,7 @@ Decimal arithmetic in generated Go uses `shopspring/decimal`, vendored in `go_ha
 | `go_harness/` | Go module template with vendored dependencies |
 | `docs/` | worked examples and the failure table |
 | `scripts/` | `freeze_golden.py`, `vendor_decimal.sh`, Docker warm-up |
-| `viewer/` | generated results page |
+| `viewer/` | static results app (`index.html` + ES modules); `python -m core.build_viewer` writes `viewer/data/` |
 
 ## Supported COBOL subset (stated honestly)
 
