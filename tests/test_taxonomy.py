@@ -42,7 +42,8 @@ def test_collect_and_csv(tmp_path):
     assert "-fmt.Sscan(x)" in rows[0]["repair_diff"] and "+strconv.ParseInt(x)" in rows[0]["repair_diff"]
     write_csv(rows, tmp_path / "f.csv")
     got = list(csv.DictReader((tmp_path / "f.csv").open()))
-    assert got[0]["run"] == "modal/p/sample0" and got[0]["label"] == ""
+    assert got[0]["run"] == "modal/p/sample0" and got[0]["label_source"] == "auto"
+    assert got[0]["label"].startswith("library semantics: fmt.Sscan")
 
 
 def test_repair_diff_ignores_comments_and_spacing(tmp_path):
@@ -78,3 +79,38 @@ def test_hand_labels_are_merged(tmp_path):
     lab.write_text("run,label,notes\nmodal/p/sample0,compile: unused variable,n\n")
     row = collect_failures(tmp_path / "run", load_labels(lab))[0]
     assert row["label"] == "compile: unused variable" and row["notes"] == "n"
+
+
+def test_auto_labels_from_real_compiler_messages():
+    from core.taxonomy import auto_label
+    b = lambda m: "BUILD ERROR:\n# go_harness\n" + m
+    assert auto_label(b("./main.go:79:2: declared and not used: qd")) == "compile: unused variable"
+    assert auto_label(b("./main.go:79:2: declared and not used: q\n./main.go:58:7: assignment mismatch: 1 variable but a.QuoRem returns 2 values")) == "compile: hallucinated or misused library API"
+    assert auto_label(b("abs.GreaterOrEqual undefined (type decimal.Decimal has no field or method GreaterOrEqual)")) == "compile: hallucinated or misused library API"
+    assert auto_label(b("cannot use int64(scale) (value of type int64) as int32 value in argument to v.StringFixed")) == "compile: integer or struct type mismatch"
+    assert auto_label(b("invalid operation: intDigits + scale (mismatched types int and int32)")) == "compile: integer or struct type mismatch"
+    assert auto_label(b("./main.go:244:102: syntax error: unexpected ) at end of statement")) == "compile: syntax error"
+    assert auto_label("[case-01] crash\nexit code 2\npanic: runtime error: index out of range [5] with length 5") == "runtime: index out of range"
+
+
+def test_auto_labels_from_the_repair_diff():
+    from core.taxonomy import auto_label
+    diff = "--- first attempt\n+++ final\n@@\n-fmt.Sscan(t, &n)\n+n, err := strconv.ParseInt(t, 10, 64)"
+    assert auto_label("[c] stdout_diff\n-X 5.00\n+X 0.00", diff).startswith("library semantics: fmt.Sscan")
+    diff2 = "-onePointFive := decimal.New(15, 1)\n+onePointFive := decimal.New(15, -1)"
+    assert auto_label("[c] stdout_diff\n-X 130.00\n+X 9,040.00", diff2) == "library semantics: decimal.New exponent sign"
+    assert auto_label("[c] stdout_diff\n-T 8\n+T 008", "") == "COBOL formatting: numeric-edited or zoned output"
+
+
+def test_hand_labels_win_over_auto_labels(tmp_path):
+    from core.taxonomy import load_labels
+    d = tmp_path / "run" / "m" / "p" / "sample0"
+    d.mkdir(parents=True)
+    (d / "result.json").write_text(json.dumps({"program": "p", "provider": "m", "sample": 0, "status": "verified",
+        "repairs_used": 1, "single_shot_ok": False, "attempts": [{"failure": "BUILD ERROR:\ndeclared and not used: x"}]}))
+    lab = tmp_path / "l.csv"
+    lab.write_text("run,label,notes\nm/p/sample0,my own label,why\n")
+    r = collect_failures(tmp_path / "run", load_labels(lab))[0]
+    assert (r["label"], r["label_source"]) == ("my own label", "hand")
+    r2 = collect_failures(tmp_path / "run", {})[0]
+    assert (r2["label"], r2["label_source"]) == ("compile: unused variable", "auto")

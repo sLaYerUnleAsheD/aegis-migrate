@@ -80,6 +80,41 @@ def _code_lines(text: str) -> list[str]:
     return out
 
 
+COMPILE_RULES = [
+    (r"assignment mismatch|returns \d+ values|not enough arguments in call|too many arguments in call|"
+     r"has no field or method|undefined: |undefined \(type", "compile: hallucinated or misused library API"),
+    (r"mismatched types|cannot use .* as .* value|cannot use .* \(.*\) as", "compile: integer or struct type mismatch"),
+    (r"syntax error", "compile: syntax error"),
+    (r"imported and not used", "compile: unused import"),
+    (r"declared and not used", "compile: unused variable"),
+]
+TAG_LABELS = {"number_format": "COBOL formatting: numeric-edited or zoned output",
+              "missing_or_extra_lines": "output structure: lines missing or extra"}
+
+
+def auto_label(failure: str, diff: str = "") -> str:
+    """A rule-based label from the Go compiler message, the panic text, or the repair diff.
+    Hand labels override it; anything it cannot place is marked for manual labelling."""
+    f = failure or ""
+    if f.startswith("BUILD ERROR"):
+        for pat, label in COMPILE_RULES:
+            if re.search(pat, f):
+                return label
+        return "compile: other"
+    if re.search(r"\[.+?\] timeout", f):
+        return "runtime: timeout"
+    if re.search(r"\[.+?\] crash", f):
+        return "runtime: index out of range" if "index out of range" in f else "runtime: panic or crash"
+    removed = [l[1:] for l in diff.splitlines() if l.startswith("-") and not l.startswith("---")]
+    added = [l[1:] for l in diff.splitlines() if l.startswith("+") and not l.startswith("+++")]
+    if any("Sscan" in l for l in removed) and not any("Sscan" in l for l in added):
+        return "library semantics: fmt.Sscan reads a leading zero as octal"
+    neg = lambda l: bool(re.search(r"decimal\.New\([^,]+,\s*-", l))
+    if any("decimal.New(" in l and not neg(l) for l in removed) and any("decimal.New(" in l and neg(l) for l in added):
+        return "library semantics: decimal.New exponent sign"
+    return TAG_LABELS.get(auto_tag(f), "output mismatch (needs a hand label)")
+
+
 def repair_diff(run: Path, limit: int = 40) -> str:
     a0 = run / "attempt_0.go"
     final = run / "main.go"
@@ -119,15 +154,20 @@ def collect_failures(run_dir: str | Path = "run", labels: dict | None = None) ->
                     "provider": r.get("provider"), "program": r.get("program"), "sample": r.get("sample"),
                     "status": r.get("status"), "repairs_used": r.get("repairs_used"),
                     "auto_tag": auto_tag(atts[0]["failure"]),
-                    "label": labels.get(f"{r.get('provider')}/{r.get('program')}/sample{r.get('sample')}", {}).get("label", ""),
-                    "notes": labels.get(f"{r.get('provider')}/{r.get('program')}/sample{r.get('sample')}", {}).get("notes", ""),
+                    "label": "", "label_source": "", "notes": "",
                     "first_failure": atts[0]["failure"], "repair_diff": repair_diff(p.parent)})
+        row = out[-1]
+        hand = labels.get(row["run"])
+        if hand and hand.get("label"):
+            row.update(label=hand["label"], notes=hand.get("notes", ""), label_source="hand")
+        else:
+            row.update(label=auto_label(row["first_failure"], row["repair_diff"]), label_source="auto")
     return out
 
 
 def write_csv(rows: list[dict], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    cols = ["run", "status", "repairs_used", "auto_tag", "label", "notes", "first_failure", "repair_diff"]
+    cols = ["run", "status", "repairs_used", "auto_tag", "label", "label_source", "notes", "first_failure", "repair_diff"]
     with path.open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
@@ -148,7 +188,7 @@ def main(argv: list[str]) -> int:
             print("  " + "\n  ".join(r["first_failure"].splitlines()[:10]))
             print("  --- repair diff ---\n  " + "\n  ".join(r["repair_diff"].splitlines()) + "\n")
     print("\nby auto tag:", dict(Counter(r["auto_tag"] for r in rows)) or "(no first-attempt failures)")
-    cats = Counter((r["label"] or "(unlabelled)") for r in rows)
+    cats = Counter(r["label"] for r in rows)
     print("by label:")
     for k, v in cats.most_common():
         print(f"  {v:3d}  {k}")

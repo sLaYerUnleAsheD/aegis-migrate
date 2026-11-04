@@ -53,3 +53,44 @@ def test_labels_mutation_and_pooled_results_are_embedded(tmp_path):
     d = collect(run, progs, lab)
     assert d["labels"]["meta/p/sample0"]["label"] == "compile: unused variable"
     assert d["mutation"][0]["with_more_inputs"] == 0.9 and d["overall"][0]["provider"] == "meta"
+
+
+def test_export_data_writes_a_lazy_loadable_contract(tmp_path):
+    import shutil
+    from core.build_viewer import export_data
+    run, _ = make_run(tmp_path)
+    progs = tmp_path / "progs2" / "tier1"
+    progs.mkdir(parents=True)
+    shutil.copy("benchmark/programs/tier1/simple_interest.cbl", progs / "p.cbl")
+    idx = export_data(run, tmp_path / "data", tmp_path / "progs2", tmp_path / "none.csv", tmp_path / "nogold")
+    d = json.loads(idx.read_text())
+    assert d["programs"] == [{"name": "p", "tier": "tier1"}] and d["runs"][0]["id"] == "meta__p__low__s0"
+    assert {"summary", "overall", "matrix", "mutation", "failure_counts"} <= set(d)
+    run_json = json.loads((tmp_path / "data" / "runs" / "meta__p__low__s0.json").read_text())
+    assert set(run_json["attempt_go"]) == {"attempt_0.go", "attempt_1.go"} and run_json["tier"] == "tier1"
+    prog = json.loads((tmp_path / "data" / "programs" / "p.json").read_text())
+    assert prog["layout"][0]["name"] == "LR-ACCT" and "PROGRAM-ID" in prog["cobol"]
+
+
+def test_viewer_static_app_contract_and_size():
+    viewer_dir = Path("viewer")
+    idx_path = viewer_dir / "data" / "index.json"
+    if not idx_path.exists():
+        return
+    index = json.loads(idx_path.read_text())
+    for k in ["generated", "programs", "runs", "summary", "overall", "matrix", "mutation", "failure_counts"]:
+        assert k in index, f"Missing key in index.json: {k}"
+
+    valid_statuses = {"verified", "failed", "llm_error", "budget_exceeded"}
+    for r in index["runs"]:
+        assert r["status"] in valid_statuses
+
+    js_files = list(viewer_dir.rglob("*.js"))
+    for f in js_files:
+        content = f.read_text()
+        imports = re.findall(r"from\s+[\"\x27]([\.\/\w\-]+)[\"\x27]", content)
+        for imp in imports:
+            resolved = f.parent / imp
+            if not resolved.suffix:
+                resolved = resolved.with_suffix(".js")
+            assert resolved.exists(), f"Broken import in {f}: {imp}"

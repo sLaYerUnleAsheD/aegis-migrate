@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
-from core.summarize import overall, summarize
-from core.taxonomy import load_labels
+from core.summarize import effort_label, matrix, overall, summarize
+from core.taxonomy import collect_failures, load_labels
 
 HEAVY = ("cobol", "attempt_go", "final_go")
 
@@ -56,6 +58,73 @@ def build(run_dir="run", out="viewer/index.html", programs="benchmark/programs",
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(TEMPLATE.replace("__DATA__", data))
     return out
+
+
+def export_data(run_dir="run", out_dir="viewer/data", programs="benchmark/programs",
+                labels_csv="docs/failure_labels.csv", golden="benchmark/golden") -> Path:
+    """Split JSON for the app-style frontend: index.json (small), programs/<name>.json, runs/<id>.json
+    (loaded lazily). Contract documented in docs/FRONTEND_SPEC.md."""
+    import shutil
+    from cobol_adapter.analyzer import analyze, record_layout
+    out = Path(out_dir)
+    runs_dir = out / "runs"
+    progs_dir = out / "programs"
+    if runs_dir.exists():
+        shutil.rmtree(runs_dir)
+    if progs_dir.exists():
+        shutil.rmtree(progs_dir)
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    progs_dir.mkdir(parents=True, exist_ok=True)
+    labels = load_labels(labels_csv)
+    fails = {f["run"]: f for f in collect_failures(run_dir, labels)}
+    tiers, plist = {}, []
+    for cbl in sorted(Path(programs).rglob("*.cbl")):
+        src, tier = cbl.read_text(), cbl.parent.name
+        a = analyze(src)
+        try:
+            layout = record_layout(a)
+        except ValueError:
+            layout = []
+        sample, gold = cbl.with_name(cbl.stem + ".sample.dat"), Path(golden) / f"{cbl.stem}.sample.stdout"
+        (out / "programs" / f"{cbl.stem}.json").write_text(json.dumps({
+            "name": cbl.stem, "tier": tier, "cobol": src, "risks": a.risk_features, "layout": layout,
+            "paragraphs": [{"name": q.name, "performs": q.performs} for q in a.paragraphs], "go_types": a.go_types,
+            "sample_input": sample.read_text() if sample.exists() else "",
+            "golden_stdout": gold.read_text() if gold.exists() else ""}))
+        tiers[cbl.stem] = tier
+        plist.append({"name": cbl.stem, "tier": tier})
+    runs, plain = [], []
+    for p in sorted(Path(run_dir).rglob("result.json")):
+        try:
+            r = json.loads(p.read_text())
+        except (OSError, ValueError):
+            continue
+        eff = effort_label(r)
+        rid = f"{r.get('provider')}__{r.get('program')}__{eff}__s{r.get('sample')}"
+        key = f"{r.get('provider')}/{r.get('program')}/sample{r.get('sample')}"
+        go = {a.name: a.read_text() for a in sorted(p.parent.glob("attempt_*.go"))}
+        if r.get("final_go") in go.values():
+            r.pop("final_go")
+        fl = fails.get(key, {})
+        (out / "runs" / f"{rid}.json").write_text(json.dumps({**r, "id": rid, "effort": eff,
+            "tier": tiers.get(r.get("program"), ""), "attempt_go": go,
+            "label": fl.get("label", ""), "label_source": fl.get("label_source", ""), "label_notes": fl.get("notes", "")}))
+        plain.append({k: v for k, v in r.items() if k not in HEAVY})
+        cost_val = r.get("total_list_cost_usd")
+        if cost_val is None:
+            cost_val = r.get("total_cost_usd", 0.0)
+        runs.append({"id": rid, "provider": r.get("provider"), "model": r.get("model"), "effort": eff,
+                     "program": r.get("program"), "tier": tiers.get(r.get("program"), ""), "sample": r.get("sample"),
+                     "status": r.get("status"), "first_try": bool(r.get("single_shot_ok")),
+                     "repairs": r.get("repairs_used", 0) or 0,
+                     "cost_list_usd": float(cost_val or 0.0),
+                     "out_tokens": sum((a.get("output_tokens", 0) or 0) for a in r.get("attempts", [])),
+                     "label": fl.get("label", "")})
+    (out / "index.json").write_text(json.dumps({
+        "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"), "programs": plist, "runs": runs,
+        "summary": summarize(plain), "overall": overall(plain), "matrix": matrix(plain), "mutation": mutation(run_dir),
+        "failure_counts": dict(Counter(f["label"] for f in fails.values())), "labels": labels}))
+    return out / "index.json"
 
 
 TEMPLATE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -111,6 +180,12 @@ D.runs.length?show(0):document.getElementById('detail').append('No results found
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-dir", default="run")
-    ap.add_argument("--out", default="viewer/index.html")
+    ap.add_argument("--out", default=None, help="write legacy single-page HTML report")
+    ap.add_argument("--data-dir", default=None, help="also write split JSON for the app-style frontend")
     a = ap.parse_args()
-    print(f"wrote {build(a.run_dir, a.out)}")
+    if a.out:
+        print(f"wrote {build(a.run_dir, a.out)}")
+    if a.data_dir:
+        print(f"wrote {export_data(a.run_dir, a.data_dir)}")
+    if not a.out and not a.data_dir:
+        print(f"wrote {export_data(a.run_dir, 'viewer/data')}")

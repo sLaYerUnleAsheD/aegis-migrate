@@ -58,7 +58,7 @@ All three go through one client (`core/llm.py`) with a disk cache, a per-provide
 |---|---|---|---|---|---|---|
 | Meta Spark 1.3 (reasoning effort low) | 60 | 52/60 (87%) | 60/60 | 10 | ~6,672 | $0.031 |
 | Muse Spark Open on Modal (default effort) | 60 | 34/60 (57%) | 60/60 | 30 | ~9,162 | $0.044 |
-| Muse Spark Open on Baseten (partial, see below) | 24 | 12/13 completed | 13/13 completed | 1 | ~20,100 | ~$0.22 |
+| Muse Spark Open on Baseten (default effort; 11 of 24 runs hit the token cap) | 24 | 12/13 completed | 13/13 completed | 1 | ~20,100 | ~$0.22 |
 
 * **Verification closes the gap.** Both models end at 100% verified; the first attempt alone passes 87% (Meta) and
   57% (Modal). No program needed more than two repairs.
@@ -69,10 +69,20 @@ All three go through one client (`core/llm.py`) with a disk cache, a per-provide
   20/20 runs on both providers. On the ten programs with edited output (`Z,ZZ9.99`-style pictures,
   `ROUNDED`), first-attempt pass rates are 42/50 (84%) for Meta and 24/50 (48%) for Modal
   (p = 0.0003). Tiers describe COBOL features; they do not track what LLMs find hard.
-* **Baseten is not comparable yet.** 11 of its 24 runs produced nothing: the reply hit the 32,000-token output cap (each
-  billed about $0.137, consistent with the cap), including all six runs of `bank_ledger`, `order_check` and `overflow_demo`.
-  Its 13 completed runs used about twice Modal's tokens for the same weights, and because the hardest programs are the ones
-  that failed to finish, its completed-run pass rate is flattered. Rerun with a lower reasoning effort before comparing.
+* **Pinning the reasoning effort fixes Baseten.** At default effort 11 of its 24 runs hit the 32,000-token cap and
+  produced nothing (about $0.137 billed each). At `low` effort the same weights finish every run:
+
+| Spark Open at low effort | Runs | First attempt passed | Passed after repair | Output tokens / run | List cost / verified program |
+|---|---|---|---|---|---|
+| on Baseten | 37 | 22/37 (59%) | 35/37 (95%) | ~4,900 | $0.025 |
+| on Modal | 37 | 17/37 (46%) | 33/37 (89%) | ~5,300 | $0.033 |
+| Spark 1.3 on Meta (reference, low effort) | 60 | 52/60 (87%) | 60/60 (100%) | ~6,700 | $0.031 |
+
+  At equal effort the two hosts of the open weights are not significantly different (first attempt, p = 0.35); both are
+  below Spark 1.3 (p = 0.003 against Baseten, p < 0.001 against Modal). Lower effort cut Modal's tokens from ~9,200 to ~5,300 and its cost per verified
+  program from $0.044 to $0.033, but 4 of its 37 runs never verified within the repair budget (Spark 1.3 at low effort:
+  0 of 60; p = 0.019 against Modal's default-effort 60 of 60). The repair loop is powerful, not magic: with a weaker first
+  attempt, some runs repeat the same failure and stop.
 
 ## What first attempts get wrong (35 first-attempt failures, labelled by hand)
 
@@ -97,8 +107,10 @@ failure was a wrong reading of COBOL arithmetic such as rounding or truncation. 
 
 ## Findings
 
-**1. The first translation is often right, sometimes subtly wrong, and verification fixes every case.** All 120
-Meta and Modal runs ended verified, from the failing diff or compiler message alone, with no more than two repairs.
+**1. The first translation is often right, sometimes subtly wrong, and verification fixes most cases.** All 120 Meta
+and default-effort Modal runs ended verified, from the failing diff or compiler message alone, with at most two repairs.
+At low effort the open-weight models failed to verify in 6 of 74 runs, so the loop's reliability depends on the first
+attempt being good enough to repair.
 
 **2. A bug that boundary tests missed and random records caught.** One first attempt parsed the 2-digit `YEARS`
 field with `fmt.Sscan`. Go reads a leading `0` as an octal prefix, so `"08"` and `"09"` parse as 0 and the interest
@@ -125,19 +137,26 @@ where both the formatting errors and the crashes live; an obvious improvement is
 
 ## How strong is the verifier? (mutation testing)
 
-66 single-edit mutants of one verified translation (Muse Spark 1.3, interest program): rounding to truncation,
-off-by-one field slices, wrong zero-padding widths, dropped spaces, flipped comparisons. **41 were caught.** The 25
-survivors were triaged by hand against the source:
+Single-edit mutants of three verified translations (rounding to truncation, off-by-one field slices, wrong zero-padding
+widths, dropped spaces, flipped comparisons), each re-verified against the real COBOL output:
 
-| Survivors | Count | Meaning |
-|---|---|---|
-| Equivalent mutants | 14 | cannot change output (e.g. `<` vs `<=` on string lengths where equal lengths give the same string) |
-| Outside the input domain | 10 | sign / space handling in numeric parsing, padding of short records, dead branches: the supported inputs are full-width and unsigned |
-| Needs ≥ 100,000 records | 1 | a counter-wrap check |
+| Translation | Mutants | Caught | Survived |
+|---|---|---|---|
+| Spark 1.3, interest calculation | 66 | 41 | 25 |
+| Spark Open (Modal), tax calculation | 57 | 40 | 17 |
+| Spark 1.3, bank ledger | 51 | 35 | 16 |
+| **Total** | **174** | **116 (67%)** | **58** |
 
-Re-checking every survivor against a larger test set (30 test files) caught none of them, which agrees with that
-triage. Triage is manual and the sample is one translation; treat 41/66 as the raw figure and the table as the
-interpretation.
+I read all 58 survivors against the source. 52 are equivalent changes or sit outside the input domain (`<` versus `<=` on
+string lengths where equal lengths give the same string, `Truncate` on an already-whole number, sign handling for inputs
+that are never signed, padding of records that are always full width). Two need inputs the generator cannot produce at
+these file sizes (a counter wrapping at 100,000 records; an accumulator overflowing at 10,000,000). Four are unresolved.
+
+**Mutation testing found a real gap in my own tests.** In the tax program, rounding versus truncation of the tax differed
+for only one input in the whole boundary set (999,999.99, top bracket), so replacing `.Round(` by `.Truncate(` in the other
+two brackets survived the four small test files and was only caught by a larger random set. I added three inputs
+(0.05, 10,000.03, 40,000.03), re-verified all ten tax translations (none changed outcome), and the mutant is now caught by
+the small set. Use `python -m core.mutate` to rerun any of this; it costs no model tokens.
 
 ## Quick start
 
@@ -153,7 +172,7 @@ python -m core.pipeline benchmark/programs/tier1/simple_interest.cbl --provider 
 
 # the benchmark: every program x provider x sample, resumable, with a cost cap
 python -m core.benchmark --provider meta --provider modal --samples 5 --max-cost 25
-python -m core.summarize        # per-program table; add --overall --markdown for the README table
+python -m core.summarize        # per-program table; --overall or --matrix, plus --markdown, for README tables
 python -m core.taxonomy --show  # every first-attempt failure, with the repair diff
 python -m core.build_viewer     # viewer/index.html: a self-contained page for run/
 python -m http.server 8000 --directory viewer   # then open http://localhost:8000
@@ -164,6 +183,18 @@ python -m core.mutate run/meta/simple_interest/sample0/main.go \
 ```
 
 Decimal arithmetic in generated Go uses `shopspring/decimal`, vendored in `go_harness/` so sandboxed builds work offline.
+
+## Replay a recorded run without any API key
+
+`demo/` holds recorded runs. Replaying one recompiles the COBOL, recomputes the golden outputs, and builds and runs each
+recorded model attempt on the same generated inputs. Only the model's text is replayed, so nothing is simulated:
+
+```bash
+docker run --rm --network none cobol-verify python -m core.replay --list
+docker run --rm --network none cobol-verify python -m core.replay demo/modal__payroll_report__sample1 --local
+```
+
+`bash scripts/export_demo.sh` regenerates `demo/` from your own `run/` folder.
 
 ## Repository layout
 
