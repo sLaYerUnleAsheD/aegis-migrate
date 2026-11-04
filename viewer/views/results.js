@@ -11,8 +11,11 @@ export function renderResults(root) {
     root.append(page);
     return;
   }
-  const providers = [...new Set(matrix.map((m) => m.provider))];
-  const efforts = [...new Set(matrix.map((m) => String(m.effort)))];
+  const providers = [...new Set(matrix.map((m) => m.provider))].sort();
+  const effortOrder = { default: 0, low: 1, medium: 2, high: 3 };
+  const efforts = [...new Set(matrix.map((m) => String(m.effort)))].sort(
+    (a, b) => (effortOrder[a] ?? 9) - (effortOrder[b] ?? 9)
+  );
   const lookup = new Map(matrix.map((m) => [`${m.provider}\0${m.effort}`, m]));
 
   page.append(el("p", { class: "reading" }, "Each cell is one serving stack × reasoning effort. Empty combinations are a dash — they were not run. Colour follows first-try pass rate among completed (non-API-error) runs."));
@@ -44,7 +47,11 @@ export function renderResults(root) {
     bars.append(bar(providerName(o.provider) + " after repair", o.verified_rate, o.verified, "var(--ok)"));
   }
   page.append(bars);
-  page.append(el("p", { class: "reading" }, readingOverall(overall)));
+  const readingGroup = el("div", { class: "reading-list" });
+  for (const line of readingOverall(overall)) {
+    readingGroup.append(el("p", { class: "reading" }, line));
+  }
+  page.append(readingGroup);
 
   const byTier = tierBreak();
   if (byTier.length) {
@@ -81,11 +88,11 @@ function readingMatrix(matrix) {
 }
 
 function readingOverall(overall) {
-  if (!overall.length) return "";
+  if (!overall.length) return [];
   return overall.map((o) => {
     const gap = (o.verified_rate ?? 0) - (o.first_try_rate ?? 0);
     return `${providerName(o.provider)}: first try ${o.first_try}, after repair ${o.verified}. Repair closed ${Math.round(gap * 100)} points. List cost per verified program ${money(o.cost_per_verified_usd)}.`;
-  }).join(" ");
+  });
 }
 
 function tierBreak() {

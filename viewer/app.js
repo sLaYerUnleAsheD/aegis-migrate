@@ -1,4 +1,4 @@
-import { state, subscribe, boot, parseHash, setPage, toggleTheme, ensureRun, openProgramPath, closeCompare } from "./store.js";
+import { state, subscribe, boot, parseHash, setPage, ensureRun, openProgramPath, closeCompare } from "./store.js";
 import { clear } from "./views/dom.js";
 import { renderExplorer } from "./views/explorer.js";
 import { renderResults } from "./views/results.js";
@@ -14,17 +14,8 @@ function syncNav() {
   });
 }
 
-function syncTheme() {
-  const btn = document.getElementById("theme");
-  if (btn) {
-    btn.textContent = state.theme === "dark" ? "☀ Light" : "☾ Dark";
-    btn.setAttribute("aria-label", `Switch to ${state.theme === "dark" ? "light" : "dark"} theme`);
-  }
-}
-
 function render() {
   syncNav();
-  syncTheme();
   const page = state.route.page;
   if (page === "results") { clear(main); renderResults(main); }
   else if (page === "failures") { clear(main); renderFailures(main); }
@@ -47,11 +38,6 @@ window.addEventListener("hashchange", async () => {
   } else {
     render();
   }
-});
-
-document.getElementById("theme")?.addEventListener("click", () => {
-  toggleTheme();
-  syncTheme();
 });
 
 document.addEventListener("keydown", (e) => {

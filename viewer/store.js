@@ -1,5 +1,4 @@
 const TREE_KEY = "aegis-tree";
-const THEME_KEY = "aegis-theme";
 const DATA = new URL("data/", import.meta.url);
 
 const listeners = new Set();
@@ -14,7 +13,6 @@ export const state = {
   route: { page: "explorer", runId: "", pane: "cobol", failGroup: "" },
   filters: { provider: new Set(), effort: new Set(), status: new Set(), q: "" },
   treeOpen: loadTree(),
-  theme: loadTheme(),
   goAttempt: null,
   replay: idleReplay(),
   compare: { open: false, program: "", ids: [] },
@@ -28,26 +26,8 @@ function loadTree() {
   try { return JSON.parse(localStorage.getItem(TREE_KEY) || "{}"); } catch { return {}; }
 }
 function saveTree() { try { localStorage.setItem(TREE_KEY, JSON.stringify(state.treeOpen)); } catch {} }
-function loadTheme() {
-  try {
-    const t = localStorage.getItem(THEME_KEY);
-    if (t === "light" || t === "dark") return t;
-  } catch {}
-  return "light";
-}
-
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 export function emit() { listeners.forEach((fn) => fn(state)); }
-
-export function applyTheme() {
-  document.documentElement.dataset.theme = state.theme;
-}
-export function toggleTheme() {
-  state.theme = state.theme === "dark" ? "light" : "dark";
-  try { localStorage.setItem(THEME_KEY, state.theme); } catch {}
-  applyTheme();
-  emit();
-}
 
 export function money(n) {
   if (n == null || Number.isNaN(Number(n))) return "—";
@@ -418,7 +398,6 @@ export function providerName(p) {
 }
 
 export async function boot() {
-  applyTheme();
   state.route = parseHash();
   await loadIndex();
   state.route = parseHash();

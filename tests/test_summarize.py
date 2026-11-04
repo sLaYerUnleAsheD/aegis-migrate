@@ -52,3 +52,14 @@ def test_api_errors_do_not_count_as_translation_failures(tmp_path):
     o = overall(load_results(tmp_path))[0]
     assert o["first_try"] == "1/2" and o["verified"] == "2/2" and o["errors"] == 1 and o["repairs"] == 1
     assert o["cost_per_verified_usd"] == pytest.approx((0.03 + 0.03 + 0.14) / 2, abs=1e-3) or o["list_cost_usd"] > 0
+
+
+def test_matrix_merges_none_and_default_effort_and_separates_errors(tmp_path):
+    from core.summarize import matrix
+    write(tmp_path, "a", effort="none")
+    write(tmp_path, "b", effort="default", single_shot_ok=False, repairs_used=1)
+    write(tmp_path, "c", effort="low")
+    write(tmp_path, "d", effort="low", status="llm_error", single_shot_ok=False, attempts=[])
+    m = {r["effort"]: r for r in matrix(load_results(tmp_path))}
+    assert list(m) == ["default", "low"] and m["default"]["runs"] == 2 and m["default"]["first_try"] == "1/2"
+    assert m["low"]["errors"] == 1 and m["low"]["completed"] == 1 and m["low"]["verified_pct"] == 100

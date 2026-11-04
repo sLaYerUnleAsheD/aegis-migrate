@@ -125,7 +125,8 @@ function realPanel(run) {
   }
   const tier = run.tier || "tier1";
   const provider = run.provider || "meta";
-  const replay = `docker run --rm --network none cobol-verify python -m core.replay demo/${run.id} --local`;
+  const demoTarget = `demo/${run.provider}__${run.program}__sample${run.sample}`;
+  const replay = `docker run --rm --network none cobol-verify python -m core.replay ${demoTarget} --local`;
   const live = `python -m core.pipeline benchmark/programs/${tier}/${run.program}.cbl --provider ${provider}`;
   det.append(
     el("p", { class: "mut" }, "These run on your machine. The second needs API keys, GnuCOBOL and Docker. This page never calls a model."),
